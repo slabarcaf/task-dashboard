@@ -95,6 +95,7 @@ export async function PATCH(
         dueDateNextStep: string;
         recurrenceInterval: number | null;
         recurrenceUnit: "day" | "week" | "month" | null;
+        isPriority: boolean;
       }>;
     };
 
@@ -111,6 +112,7 @@ export async function PATCH(
           ? String(patch.statusFinalOutcome).trim()
           : existing.statusFinalOutcome,
       tipo: patch.tipo !== undefined ? String(patch.tipo).trim() : existing.tipo,
+      isPriority: patch.isPriority !== undefined ? patch.isPriority === true : existing.isPriority,
       nextStep: patch.nextStep !== undefined ? String(patch.nextStep).trim() : existing.nextStep,
       dueDateNextStep:
         patch.dueDateNextStep !== undefined

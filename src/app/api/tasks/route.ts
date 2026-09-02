@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       dueDateNextStep?: string;
       recurrenceInterval?: number | null;
       recurrenceUnit?: "day" | "week" | "month" | null;
+      isPriority?: boolean;
     };
 
     const toDo = String(body.toDo || "").trim();
@@ -88,7 +89,8 @@ export async function POST(request: NextRequest) {
       dueDateNextStep,
       statusNextStep,
       recurrenceInterval: recurrenceUnit ? recurrenceInterval || 1 : null,
-      recurrenceUnit
+      recurrenceUnit,
+      isPriority: body.isPriority === true
     });
 
     return NextResponse.json({ ok: true, rowId });

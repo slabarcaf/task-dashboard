@@ -216,7 +216,8 @@ function getSuggestionScore(query: string, text: string): number {
 function taskFromPayload(rowId: number, payload: AddTaskPayload): Task {
   return {
     rowId,
-    ...payload
+    ...payload,
+    isPriority: payload.isPriority === true
   };
 }
 

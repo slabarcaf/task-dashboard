@@ -36,9 +36,12 @@ export type Task = {
   statusNextStep: string;
   recurrenceInterval: number | null;
   recurrenceUnit: "day" | "week" | "month" | null;
+  /** The 🔴 flag. Lived in a JSON file on the bot's VM until 2026-09-01. */
+  isPriority: boolean;
 };
 
-export type AddTaskPayload = Omit<Task, "rowId">;
+// isPriority is optional when creating: a task is not priority unless said so.
+export type AddTaskPayload = Omit<Task, "rowId" | "isPriority"> & { isPriority?: boolean };
 
 export type TaskPatch = Partial<Omit<Task, "rowId">>;
 
