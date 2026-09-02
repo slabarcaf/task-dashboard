@@ -1,6 +1,25 @@
 # Task Dashboard (Next.js + Postgres)
 
-Mobile-responsive task dashboard backed by Postgres.
+Mobile-responsive task dashboard backed by Postgres. It is also the API behind the Sydney Telegram
+assistant (`melissa-bot`), which authenticates with `OPENCLAW_API_SECRET`.
+
+## Deploying
+
+Vercel builds every push to `main` (project `task-dashboard-c7q2`, account `slabarcaf`).
+
+> **Your git commit email must belong to your GitHub account, or the deployment is blocked.**
+> Vercel refuses to build a commit whose author it cannot match to a GitHub user, and reports it as
+> `Blocked` — not `Error`, so it looks like a limit rather than a config problem. This bit us on
+> 2026-09-01: no `user.email` was set, so git invented one from the WiFi hostname
+> (`santiagolabarca@wifi-…berkeley.edu`) and three commits were silently refused.
+>
+> ```bash
+> git config --global user.email "207892885+slabarcaf@users.noreply.github.com"
+> git config --global user.name  "Santiago Labarca"
+> ```
+>
+> Blocked deployments cannot be un-blocked; push a new commit with a valid author and it ships
+> everything before it.
 
 ## Stack
 
