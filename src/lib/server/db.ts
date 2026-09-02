@@ -235,6 +235,21 @@ async function initialize(): Promise<void> {
          ADD COLUMN IF NOT EXISTS is_priority BOOLEAN NOT NULL DEFAULT FALSE`
       );
 
+      // Short-lived codes that connect a web account to a Telegram chat. The web
+      // mints one for the signed-in user; the bot redeems it when that person
+      // sends /link CODE. Single use, 15 minutes.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS telegram_link_codes (
+          code TEXT PRIMARY KEY,
+          user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ,
+          used_by_chat_id TEXT
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_codes_user ON telegram_link_codes(user_id)`);
+
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
 
@@ -405,6 +420,73 @@ export async function replaceAllDbTasksForUser(
   } finally {
     client.release();
   }
+}
+
+// ── Connecting a web account to Telegram ─────────────────────────────────────
+// Ambiguous characters (0/O, 1/I/L) are left out so a code can be read aloud or
+// retyped from a phone without confusion. Same alphabet the bot uses for invites.
+const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const LINK_CODE_TTL_MINUTES = 15;
+
+export async function createTelegramLinkCode(userId: number): Promise<{ code: string; expiresAt: Date }> {
+  await initialize();
+  const pool = getPool();
+
+  // One live code per person: minting a new one retires the old, so a code read
+  // off a stale browser tab cannot still work.
+  await pool.query(`DELETE FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+
+  let code = "";
+  for (let i = 0; i < 8; i++) code += LINK_CODE_ALPHABET[crypto.randomInt(LINK_CODE_ALPHABET.length)];
+  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+
+  await pool.query(
+    `INSERT INTO telegram_link_codes (code, user_id, expires_at) VALUES ($1, $2, $3)`,
+    [code, userId, expiresAt]
+  );
+  return { code, expiresAt };
+}
+
+export type LinkResult =
+  | { ok: true; user: DbUser }
+  | { ok: false; reason: "not_found" | "expired" | "used" | "chat_taken" };
+
+export async function redeemTelegramLinkCode(code: string, chatId: string): Promise<LinkResult> {
+  await initialize();
+  const pool = getPool();
+  const normalized = String(code || "").trim().toUpperCase();
+  const chat = String(chatId || "").trim();
+
+  const found = await pool.query<{ user_id: number; expires_at: Date; used_at: Date | null }>(
+    `SELECT user_id, expires_at, used_at FROM telegram_link_codes WHERE code = $1`,
+    [normalized]
+  );
+  if (found.rowCount === 0) return { ok: false, reason: "not_found" };
+
+  const row = found.rows[0];
+  if (row.used_at) return { ok: false, reason: "used" };
+  if (new Date(row.expires_at) < new Date()) return { ok: false, reason: "expired" };
+
+  // A chat may only ever point at one person. Without this, redeeming someone
+  // else's code from an already-linked phone would silently move that chat's
+  // tasks to a different account.
+  const taken = await pool.query<{ id: number }>(
+    `SELECT id FROM users WHERE telegram_chat_id = $1 AND id <> $2`,
+    [chat, row.user_id]
+  );
+  if ((taken.rowCount || 0) > 0) return { ok: false, reason: "chat_taken" };
+
+  const updated = await pool.query<UserRow>(
+    `UPDATE users SET telegram_chat_id = $1, updated_at = NOW() WHERE id = $2
+     RETURNING id, email, name`,
+    [chat, row.user_id]
+  );
+  await pool.query(
+    `UPDATE telegram_link_codes SET used_at = NOW(), used_by_chat_id = $1 WHERE code = $2`,
+    [chat, normalized]
+  );
+
+  return { ok: true, user: toUser(updated.rows[0]) };
 }
 
 export async function findUserByTelegramChatId(chatId: string): Promise<DbUser | null> {
