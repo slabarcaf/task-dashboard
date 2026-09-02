@@ -14,3 +14,4 @@ data/tasks.db-journal
 .env
 node_modules
 .next
+.vercel

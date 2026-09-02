@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDbTaskForUser, getDbTaskByIdForUser, updateDbTaskForUser } from "@/lib/server/db";
+import { createDbTaskForUser, deleteDbTaskForUser, getDbTaskByIdForUser, updateDbTaskForUser } from "@/lib/server/db";
 import { computeStatusNextStep } from "@/lib/server/status";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -42,12 +42,41 @@ function addRecurringInterval(
   return `${y}-${m}-${d}`;
 }
 
+export async function DELETE(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
+  try {
+    const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const id = Number(context.params.id);
+    if (!Number.isInteger(id)) {
+      return NextResponse.json({ ok: false, error: "Invalid task id" }, { status: 400 });
+    }
+
+    const deleted = await deleteDbTaskForUser(id, user.id);
+    if (!deleted) {
+      return NextResponse.json({ ok: false, error: "Task not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "Failed to delete task" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
   try {
-    const user = await getCurrentUserFromCookies();
+    const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }

@@ -336,6 +336,14 @@ export async function updateDbTaskForUser(
   return (result.rowCount || 0) > 0;
 }
 
+export async function deleteDbTaskForUser(id: number, userId: number): Promise<boolean> {
+  const result = await getPool().query(
+    `DELETE FROM tasks WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  return (result.rowCount || 0) > 0;
+}
+
 export async function replaceAllDbTasksForUser(
   userId: number,
   tasks: Array<Omit<DbTask, "rowId">>

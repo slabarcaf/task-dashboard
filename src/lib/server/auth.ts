@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   DbUser,
   createSession,
   deleteExpiredSessions,
   deleteSession,
+  findUserByEmail,
   getUserBySessionToken
 } from "@/lib/server/db";
 
@@ -57,4 +58,21 @@ export async function getCurrentUserFromCookies(): Promise<DbUser | null> {
 
 export function getCurrentSessionToken(): string | undefined {
   return cookies().get(SESSION_COOKIE_NAME)?.value;
+}
+
+/**
+ * Checks for an OpenClaw bot token in the Authorization header.
+ * If valid, returns the owner user directly — no Google OAuth needed.
+ * Returns null if the header is missing or the token doesn't match.
+ */
+export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUser | null> {
+  const secret = process.env.OPENCLAW_API_SECRET;
+  if (!secret) return null;
+
+  const authHeader = request.headers.get("authorization") || "";
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || token !== secret) return null;
+
+  const ownerEmail = (process.env.DEFAULT_OWNER_EMAIL || "Santiago.labarca@berkeley.edu").trim();
+  return findUserByEmail(ownerEmail);
 }

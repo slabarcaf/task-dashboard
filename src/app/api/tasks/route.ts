@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDbTaskForUser, listDbTasksByUser } from "@/lib/server/db";
 import { computeStatusNextStep } from "@/lib/server/status";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -22,9 +22,9 @@ function normalizeDateInput(value: string): string | null {
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUserFromCookies();
+    const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
@@ -39,7 +39,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUserFromCookies();
+    const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
