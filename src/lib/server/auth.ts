@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -6,6 +7,7 @@ import {
   deleteExpiredSessions,
   deleteSession,
   findUserByEmail,
+  findUserByTelegramChatId,
   getUserBySessionToken
 } from "@/lib/server/db";
 
@@ -60,10 +62,26 @@ export function getCurrentSessionToken(): string | undefined {
   return cookies().get(SESSION_COOKIE_NAME)?.value;
 }
 
+/** Constant-time compare so the shared secret can't be probed byte by byte. */
+function secretMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 /**
- * Checks for an OpenClaw bot token in the Authorization header.
- * If valid, returns the owner user directly — no Google OAuth needed.
- * Returns null if the header is missing or the token doesn't match.
+ * Authenticates a request from the Sydney bot.
+ *
+ * The bearer token proves the request came from the bot; the X-Telegram-Chat-Id
+ * header says *which person* it is acting for. A chat id that maps to a user row
+ * resolves to that user, so each Telegram user reads and writes their own tasks.
+ *
+ * Without the header, or with a chat id no row claims yet, it falls back to the
+ * owner account — the behaviour before per-user accounts existed. That fallback
+ * is what makes this deployable ahead of the data migration: nothing breaks
+ * while rows are still being linked. Once every chat is linked it should become
+ * a rejection, so an unknown chat cannot silently read the owner's tasks.
  */
 export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUser | null> {
   const secret = process.env.OPENCLAW_API_SECRET;
@@ -71,7 +89,13 @@ export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUs
 
   const authHeader = request.headers.get("authorization") || "";
   const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || token !== secret) return null;
+  if (scheme?.toLowerCase() !== "bearer" || !token || !secretMatches(token, secret)) return null;
+
+  const chatId = request.headers.get("x-telegram-chat-id")?.trim();
+  if (chatId) {
+    const user = await findUserByTelegramChatId(chatId);
+    if (user) return user;
+  }
 
   const ownerEmail = (process.env.DEFAULT_OWNER_EMAIL || "Santiago.labarca@berkeley.edu").trim();
   return findUserByEmail(ownerEmail);

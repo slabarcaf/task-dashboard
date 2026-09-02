@@ -179,6 +179,17 @@ async function initialize(): Promise<void> {
         `ALTER TABLE users
          ADD COLUMN IF NOT EXISTS tipo_options TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`
       );
+      // Lets the Sydney bot address a specific person instead of resolving every
+      // Telegram chat to the one owner account. Nullable: browser-only users
+      // never get one.
+      await pool.query(
+        `ALTER TABLE users
+         ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT`
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_chat_id
+         ON users(telegram_chat_id) WHERE telegram_chat_id IS NOT NULL`
+      );
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS sessions (
@@ -213,6 +224,12 @@ async function initialize(): Promise<void> {
       await pool.query(
         `ALTER TABLE tasks
          ADD COLUMN IF NOT EXISTS recurrence_unit TEXT`
+      );
+      // Priority used to live only in priority.json on the bot's VM, keyed by
+      // row id, so the web UI could not see or set the 🔴 flag at all.
+      await pool.query(
+        `ALTER TABLE tasks
+         ADD COLUMN IF NOT EXISTS is_priority BOOLEAN NOT NULL DEFAULT FALSE`
       );
 
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`);
@@ -380,6 +397,21 @@ export async function replaceAllDbTasksForUser(
   } finally {
     client.release();
   }
+}
+
+export async function findUserByTelegramChatId(chatId: string): Promise<DbUser | null> {
+  await initialize();
+
+  const result = await getPool().query<UserRow>(
+    `SELECT id, email, name
+     FROM users
+     WHERE telegram_chat_id = $1
+     LIMIT 1`,
+    [String(chatId).trim()]
+  );
+
+  if (result.rowCount === 0) return null;
+  return toUser(result.rows[0]);
 }
 
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
