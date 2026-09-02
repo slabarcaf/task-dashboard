@@ -10,6 +10,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Toast } from "@/components/ui/Toast";
 import {
   addTask,
+  deleteTask,
   getCurrentUser,
   getUserPreferences,
   listTasks,
@@ -793,6 +794,29 @@ export default function HomePage() {
     await applyPatchOptimistic(task.rowId, { statusFinalOutcome: "Done" }, "Marked as done");
   };
 
+  const handleTogglePriority = async (task: Task) => {
+    await applyPatchOptimistic(
+      task.rowId,
+      { isPriority: !task.isPriority },
+      task.isPriority ? "Priority removed" : "Marked as priority"
+    );
+  };
+
+  // Deleting is the one action here that cannot be undone, so it confirms by
+  // name first — the same rule the Telegram assistant follows.
+  const handleDelete = async (task: Task) => {
+    if (!window.confirm(`Delete "${task.toDo}"? This cannot be undone.`)) return;
+    const snapshot = tasks;
+    setTasks((current) => current.filter((t) => t.rowId !== task.rowId));
+    try {
+      await deleteTask(task.rowId);
+      pushToast("Task deleted");
+    } catch (err) {
+      setTasks(snapshot);
+      pushToast(err instanceof Error ? err.message : "Delete failed", "error");
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logoutUser();
@@ -1382,7 +1406,12 @@ export default function HomePage() {
                       )}`}
                     >
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                        <h3 className="text-base font-semibold text-slate-900">{task.toDo}</h3>
+                        <h3 className="text-base font-semibold text-slate-900">
+                          {task.isPriority && (
+                            <span className="mr-1" title="Priority" aria-label="Priority">🔴</span>
+                          )}
+                          {task.toDo}
+                        </h3>
                         <div className="flex flex-wrap gap-2">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tipoBadgeClass(
@@ -1438,6 +1467,17 @@ export default function HomePage() {
                         <Button variant="ghost" disabled={rowPending} onClick={() => openEditModal(task)}>
                           Edit
                         </Button>
+                        <Button
+                          variant="ghost"
+                          disabled={rowPending}
+                          onClick={() => void handleTogglePriority(task)}
+                          aria-pressed={task.isPriority}
+                        >
+                          {task.isPriority ? "🔴 Priority" : "Set priority"}
+                        </Button>
+                        <Button variant="ghost" disabled={rowPending} onClick={() => void handleDelete(task)}>
+                          Delete
+                        </Button>
                       </div>
                     </article>
                   );
@@ -1477,7 +1517,12 @@ export default function HomePage() {
                                   )}`}
                                 >
                                   <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                                    <h4 className="text-sm font-semibold text-slate-900">{task.toDo}</h4>
+                                    <h4 className="text-sm font-semibold text-slate-900">
+                                      {task.isPriority && (
+                                        <span className="mr-1" title="Priority" aria-label="Priority">🔴</span>
+                                      )}
+                                      {task.toDo}
+                                    </h4>
                                     <span
                                       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tipoBadgeClass(
                                         task.tipo || "Others"

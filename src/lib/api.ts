@@ -77,6 +77,11 @@ export async function updateTask(rowId: number, patch: TaskPatch): Promise<Updat
   return parseJsonOrThrow<UpdateTaskResponse>(response);
 }
 
+export async function deleteTask(rowId: number): Promise<void> {
+  const response = await fetch(`/api/tasks/${rowId}`, { method: "DELETE" });
+  await parseJsonOrThrow<{ ok: boolean }>(response);
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const response = await fetch("/api/auth/me", {
     method: "GET",
