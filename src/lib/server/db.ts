@@ -49,13 +49,20 @@ export type DbUserPreferences = {
   tipoOptions: string[];
 };
 
+// Canonical category identifiers, mirroring PRESET_CATEGORIES in the bot's
+// melissa.js. These strings are STORED; what a user sees is a translated label
+// (see CATEGORY_LABELS in src/lib/categories.ts). Offering a second, English set
+// here is what leaked "University" and "Job" into a database that is otherwise
+// Spanish — do not reintroduce one.
 const DEFAULT_USER_TIPO_OPTIONS = [
-  "Finances",
-  "Others",
-  "University",
-  "Job",
+  "Work",
+  "Estudios",
+  "Salud",
   "Personal",
-  "Household"
+  "Side Projects",
+  "Finanzas",
+  "Networking",
+  "Otros"
 ];
 
 declare global {
@@ -237,7 +244,7 @@ async function initialize(): Promise<void> {
 
       // Short-lived codes that connect a web account to a Telegram chat. The web
       // mints one for the signed-in user; the bot redeems it when that person
-      // sends /link CODE. Single use, 15 minutes.
+      // sends /link CODE. Single use; see LINK_CODE_TTL_MINUTES for the window.
       await pool.query(`
         CREATE TABLE IF NOT EXISTS telegram_link_codes (
           code TEXT PRIMARY KEY,
@@ -426,7 +433,13 @@ export async function replaceAllDbTasksForUser(
 // Ambiguous characters (0/O, 1/I/L) are left out so a code can be read aloud or
 // retyped from a phone without confusion. Same alphabet the bot uses for invites.
 const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const LINK_CODE_TTL_MINUTES = 15;
+// 24 hours, not minutes. Someone who does not have Telegram yet has to install
+// it, create an account and verify a phone number before they can redeem — a
+// 15-minute window guaranteed they would come back to a dead code. The code is
+// single use, revoked the moment a new one is minted, and only ever grants
+// linking to an account the person already authenticated into, so a long window
+// costs little.
+const LINK_CODE_TTL_MINUTES = 60 * 24;
 
 export async function createTelegramLinkCode(userId: number): Promise<{ code: string; expiresAt: Date }> {
   await initialize();

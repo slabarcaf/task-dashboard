@@ -14,14 +14,13 @@ export const TIPO_OPTIONS = [
   "Personal"
 ] as const;
 
-export const ONBOARDING_SUGGESTED_TIPOS = [
-  "Finances",
-  "Others",
-  "University",
-  "Job",
-  "Personal",
-  "Household"
-] as const;
+/**
+ * Retired 2026-09-02. This English list ran alongside the Spanish one the bot
+ * uses, so the two doors offered different vocabularies and the database ended
+ * up with stray "University" and "Job" rows. The single canonical set now lives
+ * in `src/lib/categories.ts`; labels are translated for display only.
+ */
+export { CANONICAL_CATEGORIES, CANONICAL_CATEGORIES as ONBOARDING_SUGGESTED_TIPOS } from "@/lib/categories";
 
 export type StatusFinalOutcome = (typeof STATUS_FINAL_OUTCOME_OPTIONS)[number];
 export type Tipo = (typeof TIPO_OPTIONS)[number];

@@ -25,10 +25,10 @@ import {
   endOfWeekIsoDate,
   todayIsoDate
 } from "@/lib/date";
+import { AppLanguage, CANONICAL_CATEGORIES, categoryLabel } from "@/lib/categories";
 import {
   AddTaskPayload,
   AuthUser,
-  ONBOARDING_SUGGESTED_TIPOS,
   STATUS_FINAL_OUTCOME_OPTIONS,
   Task,
   TaskPatch
@@ -78,7 +78,13 @@ const CANVAS_COLUMNS: Array<{ id: CanvasColumnId; label: string; accent: string 
   { id: "no_due", label: "No Due Date", accent: "border-slate-300" }
 ];
 
-function defaultFormValues(tipo = "Others"): AddTaskPayload {
+// Until the settings panel exists (and the language preference moves out of the
+// bot's SQLite), the interface follows the browser. Category identifiers stay
+// Spanish in the database either way; only the label changes.
+const UI_LANGUAGE: AppLanguage =
+  typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en") ? "en" : "es";
+
+function defaultFormValues(tipo = "Otros"): AddTaskPayload {
   return {
     toDo: "",
     statusFinalOutcome: "To-do",
@@ -331,7 +337,7 @@ export default function HomePage() {
       const preferences = await getUserPreferences();
       const tipoOptions = normalizeTipoOptions(preferences.tipoOptions);
       const resolvedOptions =
-        tipoOptions.length > 0 ? tipoOptions : normalizeTipoOptions([...ONBOARDING_SUGGESTED_TIPOS]);
+        tipoOptions.length > 0 ? tipoOptions : normalizeTipoOptions([...CANONICAL_CATEGORIES]);
 
       setUserPreferences(preferences);
       setUserTipoOptions(resolvedOptions);
@@ -339,7 +345,7 @@ export default function HomePage() {
       setOnboardingSelection(preferences.onboardingCompleted ? resolvedOptions : []);
       setForm((current) => ({
         ...current,
-        tipo: resolvedOptions.includes(current.tipo) ? current.tipo : resolvedOptions[0] || "Others"
+        tipo: resolvedOptions.includes(current.tipo) ? current.tipo : resolvedOptions[0] || "Otros"
       }));
     } catch (preferencesError) {
       setError(
@@ -738,7 +744,7 @@ export default function HomePage() {
     const payload: AddTaskPayload = {
       toDo: form.toDo.trim(),
       statusFinalOutcome: "To-do",
-      tipo: form.tipo || userTipoOptions[0] || "Others",
+      tipo: form.tipo || userTipoOptions[0] || "Otros",
       nextStep: "",
       dueDateNextStep: normalizedDueDate,
       // This field is formula-driven in Sheets and should not be manually set on add.
@@ -768,7 +774,7 @@ export default function HomePage() {
             : task
         )
       );
-      setForm(defaultFormValues(userTipoOptions[0] || "Others"));
+      setForm(defaultFormValues(userTipoOptions[0] || "Otros"));
       setAddRecurrencePreset("none");
       setAddRecurrenceInterval(2);
       setAddRecurrenceUnit("week");
@@ -868,7 +874,7 @@ export default function HomePage() {
         ...current,
         tipo: preferences.tipoOptions.includes(current.tipo)
           ? current.tipo
-          : preferences.tipoOptions[0] || "Others"
+          : preferences.tipoOptions[0] || "Otros"
       }));
       pushToast("Preferences saved", "success");
     } catch (onboardingError) {
@@ -889,7 +895,7 @@ export default function HomePage() {
     setEditForm({
       toDo: task.toDo,
       statusFinalOutcome: task.statusFinalOutcome || "To-do",
-      tipo: task.tipo || availableTipoOptions[0] || "Others",
+      tipo: task.tipo || availableTipoOptions[0] || "Otros",
       nextStep: task.nextStep || "",
       dueDateNextStep: task.dueDateNextStep || today,
       statusNextStep: task.statusNextStep || "",
@@ -995,7 +1001,7 @@ export default function HomePage() {
   }
 
   if (needsOnboarding) {
-    const suggested = [...ONBOARDING_SUGGESTED_TIPOS];
+    const suggested = [...CANONICAL_CATEGORIES];
     return (
       <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -1415,10 +1421,10 @@ export default function HomePage() {
                         <div className="flex flex-wrap gap-2">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tipoBadgeClass(
-                              task.tipo || "Others"
+                              task.tipo || "Otros"
                             )}`}
                           >
-                            {task.tipo || "Others"}
+                            {categoryLabel(task.tipo || "Otros", UI_LANGUAGE)}
                           </span>
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(
@@ -1525,10 +1531,10 @@ export default function HomePage() {
                                     </h4>
                                     <span
                                       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tipoBadgeClass(
-                                        task.tipo || "Others"
+                                        task.tipo || "Otros"
                                       )}`}
                                     >
-                                      {task.tipo || "Others"}
+                                      {categoryLabel(task.tipo || "Otros", UI_LANGUAGE)}
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-700">
