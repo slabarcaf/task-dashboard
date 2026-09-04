@@ -97,6 +97,16 @@ export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUs
     if (user) return user;
   }
 
+  // Every account that exists is linked, so this fallback can no longer help
+  // anybody — it can only hand the owner's tasks to a chat nobody claimed. It
+  // stays for now because the older Telegram-only invite path still creates bot
+  // users with no Postgres row, and removing it would 401 them instead. Log
+  // loudly so that if it ever fires there is a trace, and see ACCESS-DESIGN.md
+  // for the fix: give the invite flow a real account instead of a fallback.
+  if (chatId) {
+    console.warn(`[auth] chat ${chatId} is not linked to any account — falling back to the owner`);
+  }
+
   const ownerEmail = (process.env.DEFAULT_OWNER_EMAIL || "Santiago.labarca@berkeley.edu").trim();
   return findUserByEmail(ownerEmail);
 }
