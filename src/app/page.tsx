@@ -27,6 +27,21 @@ import {
 } from "@/lib/date";
 import { AppLanguage, CANONICAL_CATEGORIES, categoryLabel } from "@/lib/categories";
 import {
+  CanvasColumnId,
+  RecurrencePreset,
+  defaultFormValues,
+  getCanvasColumnId,
+  getSuggestionScore,
+  normalizeDateInput,
+  normalizeStatus,
+  normalizeTaskPatch,
+  normalizeTipoOptions,
+  recurrencePresetFromTask,
+  taskFromPayload,
+  taskSearchText
+} from "@/lib/taskFilters";
+import { cardDueTintClass, statusBadgeClass, tipoBadgeClass } from "@/lib/taskStyles";
+import {
   AddTaskPayload,
   AuthUser,
   STATUS_FINAL_OUTCOME_OPTIONS,
@@ -58,8 +73,6 @@ type StatusFilter = "all" | "open" | "done" | "on_hold";
 type DueWindow = "today_overdue" | "today" | "this_week" | "overdue" | "all";
 type SortOption = "overdue_due" | "due_asc" | "due_desc" | "title_az" | "title_za";
 type ViewMode = "list" | "canvas";
-type CanvasColumnId = "overdue" | "today" | "tomorrow" | "this_week" | "later" | "no_due";
-type RecurrencePreset = "none" | "daily" | "weekly" | "monthly" | "custom";
 
 type ToastState = {
   visible: boolean;
@@ -83,168 +96,6 @@ const CANVAS_COLUMNS: Array<{ id: CanvasColumnId; label: string; accent: string 
 // Spanish in the database either way; only the label changes.
 const UI_LANGUAGE: AppLanguage =
   typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en") ? "en" : "es";
-
-function defaultFormValues(tipo = "Otros"): AddTaskPayload {
-  return {
-    toDo: "",
-    statusFinalOutcome: "To-do",
-    tipo,
-    nextStep: "",
-    dueDateNextStep: todayIsoDate(),
-    statusNextStep: "",
-    recurrenceInterval: null,
-    recurrenceUnit: null
-  };
-}
-
-function normalizeTipoOptions(options: string[]): string[] {
-  const output: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of options) {
-    const value = String(raw || "").trim();
-    if (!value) continue;
-    const key = value.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    output.push(value);
-  }
-  return output;
-}
-
-function normalizeDateInput(value: string): string {
-  const raw = String(value || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const ddmmyyyy = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
-  if (ddmmyyyy) {
-    const [, dd, mm, yyyy] = ddmmyyyy;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return raw;
-}
-
-function normalizeTaskPatch(patch: TaskPatch): TaskPatch {
-  const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
-  return Object.fromEntries(entries) as TaskPatch;
-}
-
-function normalizeStatus(status: string): string {
-  if (status === "On-hold") return "On hold";
-  return status;
-}
-
-function normalizeTipoKey(tipo: string): string {
-  return String(tipo || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function tipoBadgeClass(tipo: string): string {
-  const key = normalizeTipoKey(tipo);
-  if (key === "finances" || key === "finanzas") return "bg-emerald-100 text-emerald-800";
-  if (key === "others" || key === "otros") return "bg-slate-200 text-slate-800";
-  if (key === "university" || key === "clases") return "bg-violet-100 text-violet-800";
-  if (key === "job" || key === "recruiting") return "bg-indigo-100 text-indigo-800";
-  if (key === "personal") return "bg-pink-100 text-pink-800";
-  if (key === "household") return "bg-orange-100 text-orange-800";
-  return "bg-cyan-100 text-cyan-800";
-}
-
-function statusBadgeClass(status: string): string {
-  const normalized = normalizeStatus(status);
-  if (normalized === "To-do") return "bg-red-100 text-red-800";
-  if (normalized === "On-going") return "bg-blue-100 text-blue-800";
-  if (normalized === "On hold") return "bg-amber-100 text-amber-900";
-  if (normalized === "Done") return "bg-emerald-100 text-emerald-800";
-  return "bg-slate-200 text-slate-800";
-}
-
-function cardDueTintClass(dueDate: string, today: string, statusFinalOutcome: string): string {
-  if (!dueDate) return "bg-white";
-  const due = new Date(`${dueDate}T00:00:00`);
-  const base = new Date(`${today}T00:00:00`);
-  if (Number.isNaN(due.getTime()) || Number.isNaN(base.getTime())) return "bg-white";
-
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const deltaDays = Math.floor((due.getTime() - base.getTime()) / msPerDay);
-  const normalizedStatus = normalizeStatus(statusFinalOutcome);
-
-  if (deltaDays === 0) return "bg-white";
-  if (deltaDays < 0) {
-    if (normalizedStatus === "On-going") {
-      if (deltaDays <= -14) return "bg-blue-100";
-      if (deltaDays <= -7) return "bg-blue-50";
-      return "bg-sky-50";
-    }
-    if (deltaDays <= -14) return "bg-red-100";
-    if (deltaDays <= -7) return "bg-red-50";
-    return "bg-rose-50";
-  }
-
-  if (deltaDays >= 14) return "bg-emerald-100";
-  if (deltaDays >= 7) return "bg-emerald-50";
-  return "bg-green-50";
-}
-
-function taskSearchText(task: Task): string {
-  return [
-    task.toDo,
-    task.nextStep,
-    task.statusNextStep,
-    task.tipo,
-    normalizeStatus(task.statusFinalOutcome),
-    task.dueDateNextStep
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function getSuggestionScore(query: string, text: string): number {
-  if (!query) return 0;
-  if (text.includes(query)) return 1000;
-
-  const queryTokens = query.split(/\s+/).filter(Boolean);
-  const textTokens = new Set(text.split(/\s+/).filter(Boolean));
-
-  let score = 0;
-  for (const token of queryTokens) {
-    if (textTokens.has(token)) {
-      score += 5;
-    } else if (text.includes(token)) {
-      score += 2;
-    }
-  }
-
-  if (text.startsWith(query)) score += 3;
-  return score;
-}
-
-function taskFromPayload(rowId: number, payload: AddTaskPayload): Task {
-  return {
-    rowId,
-    ...payload,
-    isPriority: payload.isPriority === true
-  };
-}
-
-function recurrencePresetFromTask(task: Pick<Task, "recurrenceInterval" | "recurrenceUnit">): RecurrencePreset {
-  if (!task.recurrenceInterval || !task.recurrenceUnit) return "none";
-  if (task.recurrenceInterval === 1 && task.recurrenceUnit === "day") return "daily";
-  if (task.recurrenceInterval === 1 && task.recurrenceUnit === "week") return "weekly";
-  if (task.recurrenceInterval === 1 && task.recurrenceUnit === "month") return "monthly";
-  return "custom";
-}
-
-function getCanvasColumnId(task: Task, today: string, tomorrow: string, weekEnd: string): CanvasColumnId {
-  const due = task.dueDateNextStep;
-  if (!due) return "no_due";
-  if (due < today) return "overdue";
-  if (due === today) return "today";
-  if (due === tomorrow) return "tomorrow";
-  if (due <= weekEnd) return "this_week";
-  return "later";
-}
 
 export default function HomePage() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);

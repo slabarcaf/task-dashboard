@@ -2,13 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens ────────────────────────────────────────────────────────
+   "Amanecer y anochecer": deep indigo as the ground, warm amber for whatever
+   is asking for attention. The product's real structure is the day — the 7:00
+   and 20:00 briefs — so the palette follows it.
+
+   These values are the ones agreed on in design-mockup.html (melissa-bot repo)
+   and are documented in DESIGN.md. Change them here, not in components.
+
+   ⚠️ Dark mode is currently reachable only through an explicit
+   `<html data-theme="dark">`. The `prefers-color-scheme` binding is switched on
+   in the last step of the redesign, once every screen reads these tokens —
+   turning it on earlier would hand a half-migrated, unreadable screen to
+   anyone whose system is set to dark. See DESIGN.md, "Dark mode".            */
 :root {
   color-scheme: light;
+
+  --bg: #f7f8fc;
+  --surface: #ffffff;
+  --raised: #f1f3fa;
+  --sunken: #eaedf7;
+
+  --ink: #151a3a;
+  --ink-2: #5b6188;
+  --ink-3: #8a90b0;
+
+  --line: #e2e5f0;
+  --line-2: #d3d8e8;
+
+  --brand: #3d4bc7;
+  --brand-ink: #ffffff;
+  --brand-soft: #e8ebfb;
+
+  --amber: #e8912b;
+  --amber-soft: #fcf0de;
+
+  --ok: #2e9e6b;
+  --ok-soft: #e1f4ec;
+
+  --late: #d95241;
+  --late-soft: #fce9e6;
+
+  /* The two ends of the day, used by the sign-in screen's backdrop. */
+  --night-1: #151a3a;
+  --night-2: #232b63;
+
+  --shadow: 0 1px 2px rgba(21, 26, 58, 0.05), 0 8px 24px rgba(21, 26, 58, 0.07);
+  --shadow-lg: 0 2px 4px rgba(21, 26, 58, 0.06), 0 20px 48px rgba(21, 26, 58, 0.14);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0f1226;
+  --surface: #1a1e3d;
+  --raised: #242a54;
+  --sunken: #141830;
+
+  --ink: #e8eaf6;
+  --ink-2: #a0a6c8;
+  --ink-3: #767d9f;
+
+  --line: #2e3563;
+  --line-2: #3a4276;
+
+  --brand: #7b87f0;
+  --brand-ink: #0f1226;
+  --brand-soft: #232a5c;
+
+  --amber: #f5a93f;
+  --amber-soft: #3a2c15;
+
+  --ok: #4ade9b;
+  --ok-soft: #15352a;
+
+  --late: #ff6b5b;
+  --late-soft: #3a1c1a;
+
+  --night-1: #0b0e20;
+  --night-2: #1a2050;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 56px rgba(0, 0, 0, 0.45);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef3ff 100%);
-  color: #0f172a;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dates and counters line up in columns instead of jittering per digit. */
+.num {
+  font-variant-numeric: tabular-nums;
 }
