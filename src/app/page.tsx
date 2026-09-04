@@ -9,16 +9,16 @@ import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { Toast } from "@/components/ui/Toast";
 import { SignInScreen } from "@/components/SignInScreen";
+import { useTasks } from "@/hooks/useTasks";
+import { useRecurrence } from "@/hooks/useRecurrence";
 import {
   addTask,
   deleteTask,
   getCurrentUser,
   getUserPreferences,
-  listTasks,
   logoutUser,
   saveUserPreferences,
-  signInWithGoogle,
-  updateTask
+  signInWithGoogle
 } from "@/lib/api";
 import {
   addDaysToIsoDate,
@@ -35,7 +35,6 @@ import {
   getSuggestionScore,
   normalizeDateInput,
   normalizeStatus,
-  normalizeTaskPatch,
   normalizeTipoOptions,
   recurrencePresetFromTask,
   taskFromPayload,
@@ -46,8 +45,7 @@ import {
   AddTaskPayload,
   AuthUser,
   STATUS_FINAL_OUTCOME_OPTIONS,
-  Task,
-  TaskPatch
+  Task
 } from "@/lib/types";
 
 type TabValue = "add" | "dashboard";
@@ -62,7 +60,6 @@ type ToastState = {
   tone: "success" | "error";
 };
 
-const SYNC_REFRESH_THRESHOLD = 4;
 
 const CANVAS_COLUMNS: Array<{ id: CanvasColumnId; label: string; accent: string }> = [
   { id: "overdue", label: "Overdue", accent: "border-red-300" },
@@ -95,8 +92,6 @@ export default function HomePage() {
   const [isSavingOnboarding, setIsSavingOnboarding] = useState(false);
 
   const [tab, setTab] = useState<TabValue>("dashboard");
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<AddTaskPayload>(() => defaultFormValues());
@@ -112,8 +107,6 @@ export default function HomePage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [pendingRows, setPendingRows] = useState<Record<number, boolean>>({});
-  const [pendingSyncChanges, setPendingSyncChanges] = useState(0);
 
   const [editRowId, setEditRowId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<AddTaskPayload | null>(null);
@@ -139,6 +132,23 @@ export default function HomePage() {
     }, 2200);
     return () => window.clearTimeout(timer);
   }, [toast.visible]);
+
+  const dropSession = useCallback(() => setCurrentUser(null), []);
+
+  const {
+    tasks,
+    setTasks,
+    isLoading,
+    pendingRows,
+    loadTasks,
+    registerSuccessfulMutation,
+    applyPatchOptimistic
+  } = useTasks({
+    isSignedIn: Boolean(currentUser),
+    onUnauthorized: dropSession,
+    pushToast,
+    setError
+  });
 
   const refreshCurrentUser = useCallback(async () => {
     setIsAuthLoading(true);
@@ -223,39 +233,12 @@ export default function HomePage() {
     }
   }, [currentUser, isAuthLoading, loadUserPreferences]);
 
-  const loadTasks = useCallback(async () => {
-    if (!currentUser) {
-      setTasks([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const rows = await listTasks();
-      setTasks(rows);
-    } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Failed to load tasks.";
-      if (message === "Unauthorized") {
-        setCurrentUser(null);
-        setTasks([]);
-      }
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentUser]);
-
+  // `loadTasks` already clears the list and stops loading when nobody is signed
+  // in, so both branches of the old effect collapse into one call.
   useEffect(() => {
-    if (!isAuthLoading && currentUser) {
-      void loadTasks();
-    }
-    if (!isAuthLoading && !currentUser) {
-      setTasks([]);
-      setIsLoading(false);
-    }
-  }, [currentUser, isAuthLoading, loadTasks]);
+    if (isAuthLoading) return;
+    void loadTasks();
+  }, [isAuthLoading, loadTasks]);
 
   const today = todayIsoDate();
   const tomorrow = addDaysToIsoDate(today, 1);
@@ -268,94 +251,23 @@ export default function HomePage() {
   }, [tasks, userTipoOptions]);
 
   const applyAddRecurrence = useCallback(
-    (
-      preset: RecurrencePreset,
-      customInterval = addRecurrenceInterval,
-      customUnit = addRecurrenceUnit
-    ) => {
-      if (preset === "none") {
-        setForm((current) => ({ ...current, recurrenceInterval: null, recurrenceUnit: null }));
-        return;
-      }
-      if (preset === "daily") {
-        setForm((current) => ({ ...current, recurrenceInterval: 1, recurrenceUnit: "day" }));
-        return;
-      }
-      if (preset === "weekly") {
-        setForm((current) => ({ ...current, recurrenceInterval: 1, recurrenceUnit: "week" }));
-        return;
-      }
-      if (preset === "monthly") {
-        setForm((current) => ({ ...current, recurrenceInterval: 1, recurrenceUnit: "month" }));
-        return;
-      }
-      setForm((current) => ({
-        ...current,
-        recurrenceInterval: Math.max(1, Number(customInterval || 1)),
-        recurrenceUnit: customUnit
-      }));
-    },
-    [addRecurrenceInterval, addRecurrenceUnit]
+    (recurrence: Pick<Task, "recurrenceInterval" | "recurrenceUnit">) =>
+      setForm((current) => ({ ...current, ...recurrence })),
+    []
   );
+  useRecurrence(addRecurrencePreset, addRecurrenceInterval, addRecurrenceUnit, applyAddRecurrence);
 
   const applyEditRecurrence = useCallback(
-    (
-      preset: RecurrencePreset,
-      customInterval = editRecurrenceInterval,
-      customUnit = editRecurrenceUnit
-    ) => {
-      if (preset === "none") {
-        setEditForm((current) =>
-          current ? { ...current, recurrenceInterval: null, recurrenceUnit: null } : current
-        );
-        return;
-      }
-      if (preset === "daily") {
-        setEditForm((current) =>
-          current ? { ...current, recurrenceInterval: 1, recurrenceUnit: "day" } : current
-        );
-        return;
-      }
-      if (preset === "weekly") {
-        setEditForm((current) =>
-          current ? { ...current, recurrenceInterval: 1, recurrenceUnit: "week" } : current
-        );
-        return;
-      }
-      if (preset === "monthly") {
-        setEditForm((current) =>
-          current ? { ...current, recurrenceInterval: 1, recurrenceUnit: "month" } : current
-        );
-        return;
-      }
-      setEditForm((current) =>
-        current
-          ? {
-              ...current,
-              recurrenceInterval: Math.max(1, Number(customInterval || 1)),
-              recurrenceUnit: customUnit
-            }
-          : current
-      );
-    },
-    [editRecurrenceInterval, editRecurrenceUnit]
+    (recurrence: Pick<Task, "recurrenceInterval" | "recurrenceUnit">) =>
+      setEditForm((current) => (current ? { ...current, ...recurrence } : current)),
+    []
   );
-
-  useEffect(() => {
-    if (addRecurrencePreset === "custom") {
-      applyAddRecurrence("custom");
-    } else {
-      applyAddRecurrence(addRecurrencePreset);
-    }
-  }, [addRecurrencePreset, addRecurrenceInterval, addRecurrenceUnit, applyAddRecurrence]);
-
-  useEffect(() => {
-    if (editRecurrencePreset === "custom") {
-      applyEditRecurrence("custom");
-    } else {
-      applyEditRecurrence(editRecurrencePreset);
-    }
-  }, [editRecurrencePreset, editRecurrenceInterval, editRecurrenceUnit, applyEditRecurrence]);
+  useRecurrence(
+    editRecurrencePreset,
+    editRecurrenceInterval,
+    editRecurrenceUnit,
+    applyEditRecurrence
+  );
 
   const baseFilteredTasks = useMemo(() => {
     const matches = (task: Task): boolean => {
@@ -443,89 +355,6 @@ export default function HomePage() {
 
     return buckets;
   }, [filteredTasks, today, tomorrow, weekEnd]);
-
-  const setRowPending = (rowId: number, pending: boolean) => {
-    setPendingRows((current) => ({ ...current, [rowId]: pending }));
-  };
-
-  const registerSuccessfulMutation = useCallback(async () => {
-    let shouldRefresh = false;
-    setPendingSyncChanges((current) => {
-      const next = current + 1;
-      if (next >= SYNC_REFRESH_THRESHOLD) {
-        shouldRefresh = true;
-        return 0;
-      }
-      return next;
-    });
-
-    if (shouldRefresh) {
-      await loadTasks();
-    }
-  }, [loadTasks]);
-
-  useEffect(() => {
-    const syncOnLeave = () => {
-      if (pendingSyncChanges > 0) {
-        void loadTasks();
-        setPendingSyncChanges(0);
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        syncOnLeave();
-      }
-    };
-
-    window.addEventListener("pagehide", syncOnLeave);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.removeEventListener("pagehide", syncOnLeave);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [loadTasks, pendingSyncChanges]);
-
-  const applyPatchOptimistic = useCallback(
-    async (rowId: number, patch: TaskPatch, successMessage: string): Promise<boolean> => {
-      const normalized = normalizeTaskPatch(patch);
-      if (Object.keys(normalized).length === 0) return true;
-
-      let snapshot: Task[] = [];
-      setTasks((current) => {
-        snapshot = current;
-        return current.map((task) =>
-          task.rowId === rowId
-            ? {
-                ...task,
-                ...normalized
-              }
-            : task
-        );
-      });
-
-      setRowPending(rowId, true);
-      try {
-        await updateTask(rowId, normalized);
-        await registerSuccessfulMutation();
-        pushToast(successMessage);
-        return true;
-      } catch (updateError) {
-        setTasks(snapshot);
-        const message = updateError instanceof Error ? updateError.message : "Update failed.";
-        if (message === "Unauthorized") {
-          setCurrentUser(null);
-          setTasks([]);
-        }
-        setError(message);
-        pushToast("Update failed", "error");
-        return false;
-      } finally {
-        setRowPending(rowId, false);
-      }
-    },
-    [pushToast, registerSuccessfulMutation]
-  );
 
   const onAddSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

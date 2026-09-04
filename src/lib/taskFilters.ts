@@ -127,3 +127,26 @@ export function getCanvasColumnId(
   if (due <= weekEnd) return "this_week";
   return "later";
 }
+
+/**
+ * The interval/unit pair a recurrence preset stands for.
+ *
+ * This used to be written twice — once for the add form and once for the edit
+ * dialog — as two ~35-line callbacks that differed only in which setter they
+ * called. Returning the pair instead of writing it lets both callers merge it
+ * into whatever shape their own state has.
+ */
+export function recurrenceFromPreset(
+  preset: RecurrencePreset,
+  customInterval: number,
+  customUnit: "day" | "week" | "month"
+): Pick<Task, "recurrenceInterval" | "recurrenceUnit"> {
+  if (preset === "none") return { recurrenceInterval: null, recurrenceUnit: null };
+  if (preset === "daily") return { recurrenceInterval: 1, recurrenceUnit: "day" };
+  if (preset === "weekly") return { recurrenceInterval: 1, recurrenceUnit: "week" };
+  if (preset === "monthly") return { recurrenceInterval: 1, recurrenceUnit: "month" };
+  return {
+    recurrenceInterval: Math.max(1, Number(customInterval || 1)),
+    recurrenceUnit: customUnit
+  };
+}
