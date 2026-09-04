@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { Toast } from "@/components/ui/Toast";
+import { SignInScreen } from "@/components/SignInScreen";
 import {
   addTask,
   deleteTask,
@@ -49,25 +50,6 @@ import {
   TaskPatch
 } from "@/lib/types";
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-          }) => void;
-          renderButton: (
-            element: HTMLElement,
-            options: Record<string, string | number | boolean>
-          ) => void;
-        };
-      };
-    };
-  }
-}
-
 type TabValue = "add" | "dashboard";
 type StatusFilter = "all" | "open" | "done" | "on_hold";
 type DueWindow = "today_overdue" | "today" | "this_week" | "overdue" | "all";
@@ -98,7 +80,6 @@ const UI_LANGUAGE: AppLanguage =
   typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en") ? "en" : "es";
 
 export default function HomePage() {
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const addTaskTitleRef = useRef<HTMLInputElement | null>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
@@ -230,47 +211,6 @@ export default function HomePage() {
     [pushToast]
   );
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (isAuthLoading || currentUser) return;
-    if (!googleClientId) return;
-    if (!googleButtonRef.current) return;
-
-    const renderGoogleButton = () => {
-      if (!window.google || !googleButtonRef.current) return;
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: onGoogleCredential
-      });
-      googleButtonRef.current.innerHTML = "";
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "pill",
-        width: 280
-      });
-    };
-
-    if (window.google) {
-      renderGoogleButton();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = renderGoogleButton;
-    script.onerror = () => {
-      setError("Failed to load Google sign-in script.");
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [currentUser, googleClientId, isAuthLoading, onGoogleCredential]);
 
   useEffect(() => {
     if (!isAuthLoading && currentUser) {
@@ -803,38 +743,13 @@ export default function HomePage() {
 
   if (!currentUser) {
     return (
-      <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-6xl space-y-6">
-          <header className="space-y-2">
-            <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Task Dashboard</h1>
-            <p className="text-sm text-slate-600">
-              Sign in with Google to access your own tasks and keep them private.
-            </p>
-          </header>
-
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <section className="max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Sign in</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Use your Google account. You will stay signed in for 15 days.
-            </p>
-            {!googleClientId && (
-              <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Missing `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in `.env.local`.
-              </p>
-            )}
-            <div className="mt-4">
-              <div ref={googleButtonRef} />
-            </div>
-            {isSigningIn && <p className="mt-3 text-sm text-slate-600">Signing in...</p>}
-          </section>
-        </div>
-      </main>
+      <SignInScreen
+        clientId={googleClientId}
+        isSigningIn={isSigningIn}
+        error={error}
+        onCredential={onGoogleCredential}
+        onScriptError={setError}
+      />
     );
   }
 
