@@ -16,3 +16,4 @@ node_modules
 .next
 .vercel
 .vercel-OLD-PROJECT-backup
+tsconfig.tsbuildinfo

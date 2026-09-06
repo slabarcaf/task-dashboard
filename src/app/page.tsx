@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -607,6 +608,14 @@ export default function HomePage() {
                 Pick your task types so your workspace matches your workflow.
               </p>
             </div>
+            {currentUser.isAdmin && (
+              <Link
+                href="/admin"
+                className="rounded-field border border-line px-3 py-1.5 text-sm text-ink-2 hover:border-line-2 hover:text-ink"
+              >
+                Usuarios
+              </Link>
+            )}
             <Button variant="ghost" onClick={() => void handleLogout()}>
               Log out
             </Button>

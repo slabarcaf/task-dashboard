@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { isAdminUser } from "@/lib/server/admin";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,10 @@ export async function GET() {
     user: {
       id: user.id,
       email: user.email,
-      name: user.name
+      name: user.name,
+      // Advisory only — it decides whether a link is drawn, never what the
+      // server will hand over. Every /api/admin route checks again.
+      isAdmin: isAdminUser(user)
     }
   });
 }

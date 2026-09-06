@@ -134,3 +134,54 @@ export async function saveUserPreferences(tipoOptions: string[]): Promise<UserPr
   });
   return parseJsonOrThrow<UserPreferences>(response);
 }
+
+/* ─── Admin ───────────────────────────────────────────────────────────────
+   Cookie-authenticated like the rest of the browser API. The server decides
+   whether the caller is an admin; these helpers just ask. */
+
+export type AdminUserRow = {
+  id: number;
+  email: string;
+  name: string;
+  createdAt: string;
+  onboardingCompleted: boolean;
+  categoryCount: number;
+  telegramLinked: boolean;
+  telegramChatIdTail: string | null;
+  taskCount: number;
+  pendingCount: number;
+  overdueCount: number;
+  priorityCount: number;
+  lastTaskActivityAt: string | null;
+  lastSignInAt: string | null;
+  /** Admin accounts are not deletable from this screen; the API refuses too. */
+  isAdminAccount: boolean;
+};
+
+export async function listAdminUsers(): Promise<{ users: AdminUserRow[]; viewerId: number }> {
+  const response = await fetch("/api/admin/users", { method: "GET", cache: "no-store" });
+  const data = await parseJsonOrThrow<{ users: AdminUserRow[]; viewerId: number }>(response);
+  return { users: data.users, viewerId: data.viewerId };
+}
+
+export async function runAdminUserAction(
+  userId: number,
+  action: "reset_onboarding" | "unlink_telegram"
+): Promise<void> {
+  const response = await fetch(`/api/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action })
+  });
+  await parseJsonOrThrow<{ ok: boolean }>(response);
+}
+
+export async function deleteAdminUser(userId: number, confirmEmail: string): Promise<number> {
+  const response = await fetch(`/api/admin/users/${userId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmEmail })
+  });
+  const data = await parseJsonOrThrow<{ ok: boolean; taskCount: number }>(response);
+  return data.taskCount;
+}

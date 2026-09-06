@@ -85,3 +85,30 @@ npm run db:migrate:from-sheet
 - Sign-in uses Google Identity (ID token) and keeps a server session cookie for 15 days.
 - Existing imported tasks are attached to `DEFAULT_OWNER_EMAIL` so your account starts with your data.
 - `apps-script.gs` is only needed as optional source for one-time migration.
+
+## Admin
+
+`/admin` lists every account: who exists, whether they finished onboarding, whether Telegram is
+connected, and how many tasks they have — created, pending, overdue, priority — plus when they last
+signed in and last touched a task.
+
+Who is an admin comes from `ADMIN_EMAILS` (comma-separated). When it is unset it falls back to
+`DEFAULT_OWNER_EMAIL`, so the owner is the admin by default and nothing has to be configured.
+
+Three actions: repeat onboarding, disconnect Telegram, and delete the account.
+
+> **The admin API accepts a browser session only — never `OPENCLAW_API_SECRET`.** The bot's bearer
+> token resolves to the owner account, and the owner is the admin, so honouring it there would turn
+> one static string in the bot's `config.json` into a key to everyone's summary. Admin is something
+> a person is signed in as, not something a service can hold.
+
+Deleting an account removes its tasks **first, in the same transaction**. `tasks.user_id` is
+`ON DELETE SET NULL`, so removing the user row alone would leave the tasks ownerless — and
+`ensureOwnerUserAndBackfill` sweeps every ownerless task into the owner account on the next boot. A
+"deleted" user's tasks would quietly reappear in the owner's list.
+
+## UI lab
+
+`/ui-lab` renders the presentational components against fixed rows — no database, no session, no
+API. It exists because the signed-in surface can only be reached with a Google account, which makes
+redesigning it hard to verify. Deleting it costs the app no behaviour.

@@ -61,6 +61,8 @@ export type AuthUser = {
   id: number;
   email: string;
   name: string;
+  /** Advisory: whether to offer the admin screen. The API re-checks on every call. */
+  isAdmin?: boolean;
 };
 
 export type AuthMeResponse = {

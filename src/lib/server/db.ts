@@ -764,3 +764,148 @@ export async function deleteExpiredSessions(): Promise<void> {
   await initialize();
   await getPool().query(`DELETE FROM sessions WHERE expires_at <= NOW()`);
 }
+
+/* ─── Admin overview ──────────────────────────────────────────────────────
+   Everything the admin screen shows comes from one query. Counting tasks per
+   user in a subquery rather than a join keeps each user on exactly one row even
+   when they have none. */
+
+export type AdminUserOverview = {
+  id: number;
+  email: string;
+  name: string;
+  createdAt: string;
+  onboardingCompleted: boolean;
+  categoryCount: number;
+  telegramLinked: boolean;
+  /** Only the last four digits of the chat id: enough to tell chats apart. */
+  telegramChatIdTail: string | null;
+  taskCount: number;
+  pendingCount: number;
+  overdueCount: number;
+  priorityCount: number;
+  lastTaskActivityAt: string | null;
+  lastSignInAt: string | null;
+};
+
+export async function listAdminUserOverview(): Promise<AdminUserOverview[]> {
+  await initialize();
+  const pool = getPool();
+  const result = await pool.query(
+    `SELECT
+       u.id,
+       u.email,
+       u.name,
+       u.created_at,
+       u.onboarding_completed,
+       COALESCE(array_length(u.tipo_options, 1), 0) AS category_count,
+       u.telegram_chat_id,
+       (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id) AS task_count,
+       (SELECT COUNT(*) FROM tasks t
+         WHERE t.user_id = u.id AND t.status_final_outcome <> 'Done') AS pending_count,
+       (SELECT COUNT(*) FROM tasks t
+         WHERE t.user_id = u.id AND t.status_final_outcome <> 'Done'
+           AND t.due_date_next_step < CURRENT_DATE) AS overdue_count,
+       (SELECT COUNT(*) FROM tasks t
+         WHERE t.user_id = u.id AND t.status_final_outcome <> 'Done'
+           AND t.is_priority) AS priority_count,
+       (SELECT MAX(t.updated_at) FROM tasks t WHERE t.user_id = u.id) AS last_task_activity_at,
+       (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id) AS last_sign_in_at
+     FROM users u
+     ORDER BY u.created_at ASC, u.id ASC`
+  );
+
+  return result.rows.map((row) => {
+    const chatId = row.telegram_chat_id ? String(row.telegram_chat_id) : null;
+    return {
+      id: Number(row.id),
+      email: String(row.email),
+      name: String(row.name || ""),
+      createdAt: new Date(row.created_at).toISOString(),
+      onboardingCompleted: Boolean(row.onboarding_completed),
+      categoryCount: Number(row.category_count || 0),
+      telegramLinked: Boolean(chatId),
+      telegramChatIdTail: chatId ? chatId.slice(-4) : null,
+      taskCount: Number(row.task_count || 0),
+      pendingCount: Number(row.pending_count || 0),
+      overdueCount: Number(row.overdue_count || 0),
+      priorityCount: Number(row.priority_count || 0),
+      lastTaskActivityAt: row.last_task_activity_at
+        ? new Date(row.last_task_activity_at).toISOString()
+        : null,
+      lastSignInAt: row.last_sign_in_at ? new Date(row.last_sign_in_at).toISOString() : null
+    };
+  });
+}
+
+/** Sends the user back through onboarding the next time they open the app. */
+export async function resetUserOnboarding(userId: number): Promise<boolean> {
+  await initialize();
+  const result = await getPool().query(
+    `UPDATE users SET onboarding_completed = FALSE, updated_at = NOW() WHERE id = $1`,
+    [userId]
+  );
+  return (result.rowCount || 0) > 0;
+}
+
+/**
+ * Forgets which Telegram chat belongs to this account.
+ *
+ * The person keeps their account and their tasks; the bot simply stops
+ * recognising them until they run /link again. Unused link codes go too, so a
+ * code minted before the disconnect cannot silently reconnect the old chat.
+ */
+export async function unlinkTelegramForUser(userId: number): Promise<boolean> {
+  await initialize();
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `UPDATE users SET telegram_chat_id = NULL, updated_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+    await client.query(`DELETE FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, [
+      userId
+    ]);
+    await client.query("COMMIT");
+    return (result.rowCount || 0) > 0;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Deletes an account and everything in it.
+ *
+ * ⚠️ The tasks go first, and that order is the whole point. `tasks.user_id` is
+ * `ON DELETE SET NULL`, so deleting the user row on its own would leave their
+ * tasks ownerless — and `ensureOwnerUserAndBackfill` sweeps every ownerless task
+ * into the owner's account on the next boot. A "deleted" user's tasks would
+ * quietly reappear in Santiago's list. That is not hypothetical; it is why the
+ * September cleanup deleted tasks first and aborted on any ownerless row.
+ *
+ * Sessions and link codes are ON DELETE CASCADE, so they need no help.
+ */
+export async function deleteUserAndTheirTasks(
+  userId: number
+): Promise<{ deleted: boolean; taskCount: number }> {
+  await initialize();
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const tasks = await client.query(`DELETE FROM tasks WHERE user_id = $1`, [userId]);
+    const user = await client.query(`DELETE FROM users WHERE id = $1`, [userId]);
+    await client.query("COMMIT");
+    return { deleted: (user.rowCount || 0) > 0, taskCount: tasks.rowCount || 0 };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
