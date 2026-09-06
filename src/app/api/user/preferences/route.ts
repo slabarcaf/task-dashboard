@@ -4,6 +4,7 @@ import {
   DbUser,
   PreferencePatch,
   getUserPreferencesByUserId,
+  normalizeTimeOfDay,
   saveUserPreferencesByUserId
 } from "@/lib/server/db";
 
@@ -73,8 +74,17 @@ export async function POST(request: NextRequest) {
       }
       patch.timezone = timezone;
     }
-    if (typeof body.briefMorning === "string") patch.briefMorning = body.briefMorning;
-    if (typeof body.briefEvening === "string") patch.briefEvening = body.briefEvening;
+    for (const field of ["briefMorning", "briefEvening"] as const) {
+      if (typeof body[field] !== "string") continue;
+      const time = normalizeTimeOfDay(body[field] as string);
+      if (time === null) {
+        return NextResponse.json(
+          { ok: false, error: `${field} must be HH:MM, or "" to turn the brief off` },
+          { status: 400 }
+        );
+      }
+      patch[field] = time;
+    }
     if (body.categoryKeywords && typeof body.categoryKeywords === "object") {
       patch.categoryKeywords = body.categoryKeywords as Record<string, string[]>;
     }

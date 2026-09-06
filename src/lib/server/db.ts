@@ -712,8 +712,8 @@ export async function saveUserPreferencesByUserId(
       normalized,
       patch.language ?? null,
       patch.timezone ?? null,
-      normalizeTimeOfDay(patch.briefMorning),
-      normalizeTimeOfDay(patch.briefEvening),
+      patch.briefMorning ?? null,
+      patch.briefEvening ?? null,
       patch.categoryKeywords ? JSON.stringify(patch.categoryKeywords) : null,
       userId
     ]
@@ -731,10 +731,18 @@ export async function saveUserPreferencesByUserId(
   };
 }
 
-/** "7:00" and "07:00" are the same time; "25:00" is not a time at all. */
-export function normalizeTimeOfDay(value: string | undefined): string | null {
-  if (value === undefined || value === null) return null;
-  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})$/);
+/**
+ * "7:00" and "07:00" are the same time; "25:00" is not a time at all.
+ *
+ * The empty string is a real value here, not a missing one: it is how a person
+ * turns a brief off. Returns null for anything that is not a time, which the
+ * route turns into a 400 rather than a silent no-op — a brief that quietly kept
+ * its old hour after you asked to change it is worse than an error.
+ */
+export function normalizeTimeOfDay(value: string): string | null {
+  const raw = String(value).trim();
+  if (raw === "") return "";
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
