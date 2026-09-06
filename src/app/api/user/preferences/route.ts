@@ -1,18 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
-import { getUserPreferencesByUserId, saveUserPreferencesByUserId } from "@/lib/server/db";
+import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import {
+  DbUser,
+  PreferencePatch,
+  getUserPreferencesByUserId,
+  saveUserPreferencesByUserId
+} from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  try {
-    const user = await getCurrentUserFromCookies();
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
+/**
+ * Preferences for one person: categories, language, timezone, brief times.
+ *
+ * Reachable two ways, exactly like /api/tasks — a browser session, or the bot's
+ * bearer token plus the chat id it is acting for. That is the point of moving
+ * these out of the bot's SQLite: one store, one shape, two doors to it. Unlike
+ * /api/admin, there is nothing here a service should not hold on a user's
+ * behalf; the bot legitimately needs to know when to send someone their brief.
+ */
+async function resolveUser(request: NextRequest): Promise<DbUser | null> {
+  return (await getCurrentUserFromCookies()) || (await getBotUserIfAuthorized(request));
+}
 
-    const preferences = await getUserPreferencesByUserId(user.id);
-    return NextResponse.json(preferences);
+export async function GET(request: NextRequest) {
+  try {
+    const user = await resolveUser(request);
+    if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    return NextResponse.json(await getUserPreferencesByUserId(user.id));
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Failed to load preferences" },
@@ -23,25 +38,52 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUserFromCookies();
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const user = await resolveUser(request);
+    if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const patch: PreferencePatch = {};
+
+    // Only fields actually present are written; see saveUserPreferencesByUserId
+    // for why a partial write must not blank what the caller did not send.
+    if (Array.isArray(body.tipoOptions)) {
+      patch.tipoOptions = body.tipoOptions.map((value) => String(value || "").trim()).filter(Boolean);
+      if (patch.tipoOptions.length === 0) {
+        return NextResponse.json(
+          { ok: false, error: "At least one task type is required" },
+          { status: 400 }
+        );
+      }
+    }
+    if (typeof body.language === "string") {
+      const language = body.language.trim().toLowerCase();
+      if (language !== "es" && language !== "en") {
+        return NextResponse.json({ ok: false, error: "Unsupported language" }, { status: 400 });
+      }
+      patch.language = language;
+    }
+    if (typeof body.timezone === "string" && body.timezone.trim()) {
+      const timezone = body.timezone.trim();
+      // Reject a zone this runtime cannot resolve rather than storing a string
+      // that will throw later, inside a cron, at 7am, where nobody is watching.
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+      } catch {
+        return NextResponse.json({ ok: false, error: "Unknown timezone" }, { status: 400 });
+      }
+      patch.timezone = timezone;
+    }
+    if (typeof body.briefMorning === "string") patch.briefMorning = body.briefMorning;
+    if (typeof body.briefEvening === "string") patch.briefEvening = body.briefEvening;
+    if (body.categoryKeywords && typeof body.categoryKeywords === "object") {
+      patch.categoryKeywords = body.categoryKeywords as Record<string, string[]>;
     }
 
-    const body = (await request.json()) as { tipoOptions?: unknown };
-    const tipoOptions = Array.isArray(body.tipoOptions)
-      ? body.tipoOptions.map((value) => String(value || "").trim()).filter(Boolean)
-      : [];
-
-    if (tipoOptions.length === 0) {
-      return NextResponse.json(
-        { ok: false, error: "At least one task type is required" },
-        { status: 400 }
-      );
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ ok: false, error: "Nothing to update" }, { status: 400 });
     }
 
-    const preferences = await saveUserPreferencesByUserId(user.id, tipoOptions);
-    return NextResponse.json(preferences);
+    return NextResponse.json(await saveUserPreferencesByUserId(user.id, patch));
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Failed to save preferences" },

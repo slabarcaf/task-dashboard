@@ -23,6 +23,11 @@ type UserRow = {
 type UserPreferencesRow = {
   onboarding_completed: boolean;
   tipo_options: string[] | null;
+  language: string | null;
+  timezone: string | null;
+  brief_morning: string | null;
+  brief_evening: string | null;
+  category_keywords: Record<string, unknown> | null;
 };
 
 export type DbTask = {
@@ -47,6 +52,12 @@ export type DbUser = {
 export type DbUserPreferences = {
   onboardingCompleted: boolean;
   tipoOptions: string[];
+  language: string;
+  timezone: string;
+  briefMorning: string;
+  briefEvening: string;
+  /** Category name -> the words that hint at it. Only the bot reads these. */
+  categoryKeywords: Record<string, string[]>;
 };
 
 // Canonical category identifiers, mirroring PRESET_CATEGORIES in the bot's
@@ -199,6 +210,27 @@ async function initialize(): Promise<void> {
       await pool.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_chat_id
          ON users(telegram_chat_id) WHERE telegram_chat_id IS NOT NULL`
+      );
+
+      // Preferences that used to live only in the bot's SQLite on the VM. Two
+      // stores for one fact is how they end up disagreeing: Santiago's category
+      // list was empty in SQLite and eight entries long here. Postgres is the
+      // source of truth now; the bot reads these over the API.
+      //
+      // Every column has a NOT NULL default matching the bot's old default, so
+      // rows that predate the migration answer the same thing they always did.
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es'`);
+      await pool.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Los_Angeles'`
+      );
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_morning TEXT NOT NULL DEFAULT '07:00'`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_evening TEXT NOT NULL DEFAULT '20:00'`);
+      // name -> keywords. `tipo_options` stays the one list of categories; this
+      // only carries the hints the bot feeds the model when it classifies a
+      // task, which is why it is a side table rather than a richer category
+      // type: the web never needs to know keywords exist.
+      await pool.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS category_keywords JSONB NOT NULL DEFAULT '{}'::jsonb`
       );
 
       await pool.query(`
@@ -551,7 +583,8 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
   await initialize();
 
   const result = await getPool().query<UserPreferencesRow>(
-    `SELECT onboarding_completed, tipo_options
+    `SELECT onboarding_completed, tipo_options, language, timezone,
+            brief_morning, brief_evening, category_keywords
      FROM users
      WHERE id = $1
      LIMIT 1`,
@@ -594,38 +627,119 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
 
   return {
     onboardingCompleted,
-    tipoOptions
+    tipoOptions,
+    ...readPreferenceScalars(row)
   };
 }
 
+/** The columns that need no repair, shaped for the API. */
+function readPreferenceScalars(row: UserPreferencesRow) {
+  return {
+    language: row.language || "es",
+    timezone: row.timezone || "America/Los_Angeles",
+    briefMorning: row.brief_morning || "07:00",
+    briefEvening: row.brief_evening || "20:00",
+    categoryKeywords: normalizeCategoryKeywords(row.category_keywords)
+  };
+}
+
+/**
+ * Coerces whatever is in the jsonb column into `name -> string[]`.
+ *
+ * It is written by the bot, which builds it from a JSON blob a user's onboarding
+ * produced, so it is not worth trusting its shape. A malformed entry is dropped
+ * rather than allowed to reach the prompt builder as, say, a number.
+ */
+function normalizeCategoryKeywords(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const output: Record<string, string[]> = {};
+  for (const [name, words] of Object.entries(raw as Record<string, unknown>)) {
+    const key = String(name || "").trim();
+    if (!key) continue;
+    if (!Array.isArray(words)) continue;
+    const list = words.map((word) => String(word || "").trim()).filter(Boolean);
+    if (list.length > 0) output[key] = list;
+  }
+  return output;
+}
+
+export type PreferencePatch = {
+  tipoOptions?: string[];
+  language?: string;
+  timezone?: string;
+  briefMorning?: string;
+  briefEvening?: string;
+  categoryKeywords?: Record<string, string[]>;
+};
+
+/**
+ * Writes only the preferences that were actually sent.
+ *
+ * `COALESCE($n, column)` rather than a full row update: the web knows about
+ * categories and the bot knows about brief times, and neither should blank the
+ * other's fields just by saving its own. A partial writer that overwrites what
+ * it does not know is how one surface silently resets another's settings.
+ */
 export async function saveUserPreferencesByUserId(
   userId: number,
-  tipoOptions: string[]
+  patch: PreferencePatch
 ): Promise<DbUserPreferences> {
   await initialize();
-  const normalized = normalizeTipoOptions(tipoOptions);
-  if (normalized.length === 0) {
-    throw new Error("At least one task type is required");
+
+  let normalized: string[] | null = null;
+  if (patch.tipoOptions !== undefined) {
+    normalized = normalizeTipoOptions(patch.tipoOptions);
+    if (normalized.length === 0) {
+      throw new Error("At least one task type is required");
+    }
   }
 
   const result = await getPool().query<UserPreferencesRow>(
     `UPDATE users
-     SET onboarding_completed = TRUE,
-         tipo_options = $1::text[],
+     SET onboarding_completed = onboarding_completed OR $1::boolean,
+         tipo_options       = COALESCE($2::text[], tipo_options),
+         language           = COALESCE($3::text, language),
+         timezone           = COALESCE($4::text, timezone),
+         brief_morning      = COALESCE($5::text, brief_morning),
+         brief_evening      = COALESCE($6::text, brief_evening),
+         category_keywords  = COALESCE($7::jsonb, category_keywords),
          updated_at = NOW()
-     WHERE id = $2
-     RETURNING onboarding_completed, tipo_options`,
-    [normalized, userId]
+     WHERE id = $8
+     RETURNING onboarding_completed, tipo_options, language, timezone,
+               brief_morning, brief_evening, category_keywords`,
+    [
+      normalized !== null,
+      normalized,
+      patch.language ?? null,
+      patch.timezone ?? null,
+      normalizeTimeOfDay(patch.briefMorning),
+      normalizeTimeOfDay(patch.briefEvening),
+      patch.categoryKeywords ? JSON.stringify(patch.categoryKeywords) : null,
+      userId
+    ]
   );
 
   if (result.rowCount === 0) {
     throw new Error("User not found");
   }
 
+  const row = result.rows[0];
   return {
-    onboardingCompleted: Boolean(result.rows[0].onboarding_completed),
-    tipoOptions: normalizeTipoOptions(result.rows[0].tipo_options || [])
+    onboardingCompleted: Boolean(row.onboarding_completed),
+    tipoOptions: normalizeTipoOptions(row.tipo_options || []),
+    ...readPreferenceScalars(row)
   };
+}
+
+/** "7:00" and "07:00" are the same time; "25:00" is not a time at all. */
+export function normalizeTimeOfDay(value: string | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 export async function createUser(input: {

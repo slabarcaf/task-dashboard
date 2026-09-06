@@ -78,4 +78,10 @@ export type AuthGoogleResponse = {
 export type UserPreferences = {
   onboardingCompleted: boolean;
   tipoOptions: string[];
+  language: string;
+  timezone: string;
+  briefMorning: string;
+  briefEvening: string;
+  /** Only the bot uses these; the web never shows them. */
+  categoryKeywords: Record<string, string[]>;
 };
