@@ -6,7 +6,6 @@ import {
   createSession,
   deleteExpiredSessions,
   deleteSession,
-  findUserByEmail,
   findUserByTelegramChatId,
   getUserBySessionToken
 } from "@/lib/server/db";
@@ -75,13 +74,23 @@ function secretMatches(provided: string, expected: string): boolean {
  *
  * The bearer token proves the request came from the bot; the X-Telegram-Chat-Id
  * header says *which person* it is acting for. A chat id that maps to a user row
- * resolves to that user, so each Telegram user reads and writes their own tasks.
+ * resolves to that user, so each Telegram user reads and writes their own data.
  *
- * Without the header, or with a chat id no row claims yet, it falls back to the
- * owner account — the behaviour before per-user accounts existed. That fallback
- * is what makes this deployable ahead of the data migration: nothing breaks
- * while rows are still being linked. Once every chat is linked it should become
- * a rejection, so an unknown chat cannot silently read the owner's tasks.
+ * ⚠️ There is deliberately **no fallback to the owner account**. There used to
+ * be one, from before per-user accounts existed, and it was already unreachable
+ * for anyone real: every account that exists is linked. It stayed because
+ * removing it would 401 a Telegram-only user instead of serving them — which,
+ * read the other way, means it would have served them *the owner's data*.
+ *
+ * Removing it became urgent when preferences moved here: with the fallback in
+ * place, a Telegram-only user finishing onboarding would have written their
+ * language, timezone and brief times onto the owner's account. A 401 the bot
+ * logs and works around is a far better outcome than one person's onboarding
+ * silently reconfiguring another person's.
+ *
+ * The consequence, stated plainly: a Telegram chat with no linked web account
+ * cannot read or write through this API at all. Both current users are linked.
+ * Giving that path a real account is the open item in ACCESS-DESIGN.md.
  */
 export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUser | null> {
   const secret = process.env.OPENCLAW_API_SECRET;
@@ -92,21 +101,15 @@ export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUs
   if (scheme?.toLowerCase() !== "bearer" || !token || !secretMatches(token, secret)) return null;
 
   const chatId = request.headers.get("x-telegram-chat-id")?.trim();
-  if (chatId) {
-    const user = await findUserByTelegramChatId(chatId);
-    if (user) return user;
+  if (!chatId) {
+    console.warn("[auth] bot request without X-Telegram-Chat-Id — refused");
+    return null;
   }
 
-  // Every account that exists is linked, so this fallback can no longer help
-  // anybody — it can only hand the owner's tasks to a chat nobody claimed. It
-  // stays for now because the older Telegram-only invite path still creates bot
-  // users with no Postgres row, and removing it would 401 them instead. Log
-  // loudly so that if it ever fires there is a trace, and see ACCESS-DESIGN.md
-  // for the fix: give the invite flow a real account instead of a fallback.
-  if (chatId) {
-    console.warn(`[auth] chat ${chatId} is not linked to any account — falling back to the owner`);
+  const user = await findUserByTelegramChatId(chatId);
+  if (!user) {
+    console.warn(`[auth] chat ${chatId} is not linked to any account — refused`);
+    return null;
   }
-
-  const ownerEmail = (process.env.DEFAULT_OWNER_EMAIL || "Santiago.labarca@berkeley.edu").trim();
-  return findUserByEmail(ownerEmail);
+  return user;
 }
