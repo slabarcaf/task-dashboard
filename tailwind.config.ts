@@ -12,6 +12,7 @@ import type { Config } from "tailwindcss";
  * of them. New work uses the token names.
  */
 const config: Config = {
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -35,7 +36,8 @@ const config: Config = {
         },
         amber: {
           DEFAULT: "var(--amber)",
-          soft: "var(--amber-soft)"
+          soft: "var(--amber-soft)",
+          ink: "var(--amber-ink)"
         },
         ok: {
           DEFAULT: "var(--ok)",
