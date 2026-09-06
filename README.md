@@ -107,6 +107,22 @@ Deleting an account removes its tasks **first, in the same transaction**. `tasks
 `ensureOwnerUserAndBackfill` sweeps every ownerless task into the owner account on the next boot. A
 "deleted" user's tasks would quietly reappear in the owner's list.
 
+## Tests
+
+```bash
+npm test
+```
+
+`node --test` over `tests/*.test.mjs`. Today it covers the quick-capture date
+parser, which is the piece where a silent mistake is most expensive: a wrong date
+looks fine until the reminder fires on the wrong day.
+
+## Keyboard
+
+`⌘K` or `/` opens the command palette, `n` jumps to quick capture, `Escape`
+closes a dialog, `⌘↵` saves the edit dialog. Single-letter shortcuts are ignored
+while you are typing.
+
 ## UI lab
 
 `/ui-lab` renders the presentational components against fixed rows — no database, no session, no

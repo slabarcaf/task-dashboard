@@ -6,10 +6,6 @@ import type { Config } from "tailwindcss";
  * than as channel triplets: we never need Tailwind's `/opacity` syntax on these
  * (the palette already ships soft variants like `--brand-soft`), and plain
  * variables stay readable in the browser inspector.
- *
- * The numbered `brand` ramp below is the *old* palette. It is still referenced
- * by the screens that have not been redesigned yet; it goes away with the last
- * of them. New work uses the token names.
  */
 const config: Config = {
   darkMode: ["selector", '[data-theme="dark"]'],
@@ -54,18 +50,7 @@ const config: Config = {
         brand: {
           DEFAULT: "var(--brand)",
           ink: "var(--brand-ink)",
-          soft: "var(--brand-soft)",
-          // Retired ramp — see the note above.
-          50: "#f4f8ff",
-          100: "#dfe9ff",
-          200: "#bfd3ff",
-          300: "#90b3ff",
-          400: "#628fff",
-          500: "#3f6df4",
-          600: "#2f57d8",
-          700: "#2546ae",
-          800: "#213d89",
-          900: "#203866"
+          soft: "var(--brand-soft)"
         }
       },
       fontFamily: {

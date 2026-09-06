@@ -102,22 +102,18 @@ paleta de comandos, toast).
 
 Los dos temas se diseñaron juntos y ambos juegos de tokens ya están escritos.
 
-**Hoy el modo oscuro solo se alcanza con `<html data-theme="dark">`.** La regla
-`prefers-color-scheme` se conecta en el último paso del rediseño, cuando todas
-las pantallas lean tokens. Encenderla antes le entregaría una pantalla a medio
-migrar — texto oscuro sobre fondo oscuro — a cualquiera que tenga el sistema en
-oscuro.
+El tema se elige con **un solo atributo**: `data-theme` en `<html>`, que pone
+`useTheme` — desde la elección guardada si existe, y si no desde
+`prefers-color-scheme`. Mantenerlo en un atributo en vez de repartirlo entre una
+media query y un override es lo que hace que el conmutador gane en las dos
+direcciones sin reglas que se peleen.
 
-Para probarlo mientras tanto: `document.documentElement.dataset.theme = "dark"`.
+`localStorage` puede lanzar excepción en un navegador con el almacenamiento
+bloqueado, así que cada lectura y escritura va con `try`/`catch`: fallar ahí
+significa que el tema no se recuerda, nunca que la pantalla se rompe.
 
-Cuando se conecte, va con las tres formas juntas, para que el conmutador gane en
-ambas direcciones:
-
-```css
-:root { /* claro */ }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { /* oscuro */ } }
-:root[data-theme="dark"] { /* oscuro */ }
-```
+La variante `dark:` de Tailwind está atada al mismo atributo, para que un
+`dark:` suelto no siga al sistema mientras los tokens siguen al atributo.
 
 ---
 
@@ -137,8 +133,11 @@ radios sí.
 acción ocurre al instante y el toast ofrece "Deshacer". Confirmar castiga las
 mil veces que el usuario sí quería, para proteger la vez que no.
 
-**Teclado primero.** `j`/`k` navegar, `e` editar, `x` completar, `⌘K` paleta de
-comandos. Es lo que más separa una app de tareas de un formulario.
+**Teclado primero.** `⌘K` (o `/`) abre la paleta, `n` salta a la captura rápida,
+`Escape` cierra cualquier diálogo, `⌘↵` guarda el editor. Las teclas sueltas se
+ignoran mientras estás escribiendo — si no, la `n` de "renovar" te robaría el
+foco a media palabra. Faltan `j`/`k` para navegar entre tarjetas y `x` para
+completar: van cuando haya una noción de "tarjeta seleccionada".
 
 **El chip de categoría es neutro.** Un color por categoría no escala: las
 categorías son definidas por el usuario, y a la sexta el arcoíris deja de
@@ -168,13 +167,21 @@ de respaldo van como hermanos, no como hijos.
 desmonta varias veces. Hoy está enmascarado; un rediseño que la meta y saque del
 árbol lo destapa.
 
-**`Modal` no tiene focus trap, ni cierre con Escape, ni portal.** Es la carencia
-concreta que justifica traer un primitivo accesible (Base UI / shadcn) para el
-diálogo y la paleta de comandos — no una migración completa del kit a mitad del
-rediseño.
+**No uses `requestAnimationFrame` para enfocar.** Un `rAF` no dispara en una
+página que no está componiendo cuadros — una pestaña en segundo plano, un panel
+oculto, una ventana minimizada. La paleta de comandos se abría sin foco por
+exactamente eso: presionabas ⌘K, escribías, y las letras caían en el campo que
+estaba enfocado antes. El nodo ya existe cuando corre el efecto: enfócalo
+directo.
 
-**`Badge`, `Tabs` y `Toast` no aceptan `className`.** Cualquier ajuste puntual
-obliga a editar el componente.
+**El kit de `components/ui/` casi no existe.** Quedó solo `Toast`. `Badge`,
+`Button`, `Input`, `Modal`, `Select` y `Tabs` se borraron cuando dejaron de
+usarse: estaban pintados con la paleta retirada, así que reutilizarlos habría
+reintroducido `brand-600` en silencio. `Modal` además no tenía focus trap, ni
+cierre con Escape, ni portal. Los dos diálogos que existen —la paleta y el
+editor— manejan su propio foco, que es poco: autofoco, Escape, clic en el fondo,
+y devolver el foco a donde estaba. Si aparece un tercero, ahí sí conviene traer
+un primitivo accesible de verdad.
 
 ---
 
@@ -195,3 +202,21 @@ variables a la vez. Los tokens están escritos en CSS de forma compatible con v4
 
 **Zod en el borde, aparte.** Las rutas validan a mano con `String()`/`Number()`.
 Es trabajo de backend, separable de esto.
+
+---
+
+## Captura rápida
+
+Una línea, una tarea. `parseTaskInput` saca la fecha de la frase — "pagar la luz
+el viernes" — y la muestra como chip **antes** de que confirmes, para que el
+parser nunca adivine por ti sin decirlo.
+
+Es deliberadamente chico: reconoce las formas que aparecen de verdad (hoy,
+mañana, pasado mañana, un día de la semana, "en N días", una fecha suelta) y ante
+la duda no toca el texto. **Un parser que adivina es peor que uno que se
+abstiene:** una fecha equivocada es invisible hasta que el recordatorio suena el
+día que no era.
+
+Vive en `src/lib/parseTaskInput.ts` y tiene tests (`npm test`). El primero que
+falló fue "pasado mañana": la regla de "mañana" calzaba adentro y dejaba un
+"pasado" pegado al título. El orden de las reglas importa.

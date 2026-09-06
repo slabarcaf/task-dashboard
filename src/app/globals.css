@@ -10,11 +10,11 @@
    These values are the ones agreed on in design-mockup.html (melissa-bot repo)
    and are documented in DESIGN.md. Change them here, not in components.
 
-   ⚠️ Dark mode is currently reachable only through an explicit
-   `<html data-theme="dark">`. The `prefers-color-scheme` binding is switched on
-   in the last step of the redesign, once every screen reads these tokens —
-   turning it on earlier would hand a half-migrated, unreadable screen to
-   anyone whose system is set to dark. See DESIGN.md, "Dark mode".            */
+   Dark mode is selected by `data-theme` on <html>, which `useTheme` sets: from
+   the saved choice when there is one, otherwise from the system's
+   prefers-color-scheme. Keeping the switch in one attribute rather than
+   splitting it between a media query and an override is what lets the toggle
+   win in both directions. See DESIGN.md, "Dark mode".                        */
 :root {
   color-scheme: light;
 
