@@ -112,25 +112,14 @@ export function SignInScreen({
         <div className="relative flex flex-1 flex-col">
           <Wordmark tone="night" />
 
-          <h1 className="mt-12 max-w-[15ch] font-display text-[clamp(30px,3.6vw,44px)] font-bold leading-[1.12] tracking-tight">
-            Una lista. <span className="text-amber">Dos formas</span> de llegar a ella.
+          <h1 className="mt-12 max-w-[16ch] font-display text-[clamp(30px,3.6vw,44px)] font-bold leading-[1.12] tracking-tight">
+            Tu vida <span className="text-amber">entera</span>, en una sola lista.
           </h1>
-          <p className="mt-4 max-w-[38ch] text-[15.5px] leading-relaxed text-[#B9BEE0]">
-            Escríbele por Telegram como a una persona, o ábrela aquí y ordénala con el mouse. Son la
-            misma cuenta y las mismas tareas — lo que anotas en el bus aparece en tu escritorio.
+          <p className="mt-5 max-w-[40ch] text-[15.5px] leading-relaxed text-[#B9BEE0]">
+            Lo que tienes que hacer hoy, lo que dejaste para el viernes y lo que llevas tres semanas
+            postergando. Sydney lo junta todo en un solo lugar y te lo devuelve ordenado, para que no
+            tengas que acordarte de nada.
           </p>
-
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Door icon="✈" title="Telegram" caption="“pagar la luz el viernes”" />
-            <div className="flex basis-full items-center justify-center gap-2 sm:basis-auto">
-              <span aria-hidden className="h-px w-4 bg-white/25" />
-              <span className="whitespace-nowrap font-display text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[#8E95C4]">
-                misma cuenta
-              </span>
-              <span aria-hidden className="h-px w-4 bg-white/25" />
-            </div>
-            <Door icon="▤" title="Aquí" caption="ver, ordenar, filtrar" />
-          </div>
 
           {/* El arco del día. Muestra las 7:00 y las 20:00 porque esa es la
               estructura real del producto, no un adorno. */}
@@ -145,6 +134,9 @@ export function SignInScreen({
               <span className="num">☀ 7:00 · lo que viene hoy</span>
               <span className="num">☾ 20:00 · cierre del día</span>
             </div>
+            <p className="mt-5 text-[12.5px] text-[#767DA8]">
+              Aquí o en Telegram, da igual: es la misma cuenta y la misma lista.
+            </p>
           </div>
         </div>
       </section>
@@ -186,20 +178,6 @@ export function SignInScreen({
         </div>
       </section>
     </main>
-  );
-}
-
-function Door({ icon, title, caption }: { icon: string; title: string; caption: string }) {
-  return (
-    <div className="flex min-w-0 basis-full items-center gap-3 rounded-card border border-white/15 bg-white/[0.07] px-4 py-3 sm:basis-auto">
-      <span aria-hidden className="flex-none text-[17px] opacity-90">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <b className="block font-display text-sm font-semibold">{title}</b>
-        <span className="block text-[12.5px] text-[#A2A9D4]">{caption}</span>
-      </div>
-    </div>
   );
 }
 
