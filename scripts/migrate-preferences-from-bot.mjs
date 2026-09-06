@@ -1,7 +1,16 @@
 /**
  * One-time move of the bot's per-user preferences from SQLite into Postgres.
+ * Ran on 2026-09-06; kept because it is the record of what the migration did.
  *
- * Run with no arguments for a dry run. Pass `apply` to write.
+ *   # export the bot's rows from the VM first
+ *   ssh -i ~/.ssh/id_ed25519 opc@$VM_HOST 'sudo -u melissa node -e "
+ *     const {DatabaseSync}=require(\'node:sqlite\');
+ *     const db=new DatabaseSync(\'/opt/melissa/whatsapp-bot/melissa.db\');
+ *     console.log(JSON.stringify(db.prepare(\'SELECT chat_id,name,preferred_name,timezone,language,brief_morning,brief_evening,categories FROM users\').all()));
+ *   " 2>/dev/null' > /tmp/sqlite-users.json
+ *
+ *   node scripts/migrate-preferences-from-bot.mjs            # dry run
+ *   node scripts/migrate-preferences-from-bot.mjs apply /tmp/sqlite-users.json
  *
  * The category rule is the only part that needs judgement. The three inputs
  * disagree, and the *stored* Postgres list is the one that turned out to be
@@ -22,11 +31,11 @@ const env = Object.fromEntries(
     .filter((l) => l.includes("=") && !l.startsWith("#"))
     .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])
 );
-const sqliteUsers = JSON.parse(readFileSync(process.argv[3] || "/private/tmp/claude-501/-Users-santiagolabarca-Documents/6d9fec21-93a0-405e-a872-23bed3d6e31c/scratchpad/sqlite-users.json", "utf8"));
+const sqliteUsers = JSON.parse(readFileSync(process.argv[3] || "/tmp/sqlite-users.json", "utf8"));
 // Santiago's own SQLite row has an empty category list: he predates per-user
 // onboarding, so his bot prompt is still built from this shared file. It is
 // therefore his effective choice, and the keywords source for his categories.
-const shared = JSON.parse(readFileSync("/Users/santiagolabarca/Documents/CLAUDE/melissa-bot/categories.json", "utf8"));
+const shared = JSON.parse(readFileSync(process.env.SHARED_CATEGORIES || "../CLAUDE/melissa-bot/categories.json", "utf8"));
 
 const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 
