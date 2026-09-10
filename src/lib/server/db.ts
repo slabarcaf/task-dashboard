@@ -60,21 +60,11 @@ export type DbUserPreferences = {
   categoryKeywords: Record<string, string[]>;
 };
 
-// Canonical category identifiers, mirroring PRESET_CATEGORIES in the bot's
-// melissa.js. These strings are STORED; what a user sees is a translated label
-// (see CATEGORY_LABELS in src/lib/categories.ts). Offering a second, English set
-// here is what leaked "University" and "Job" into a database that is otherwise
-// Spanish — do not reintroduce one.
-const DEFAULT_USER_TIPO_OPTIONS = [
-  "Work",
-  "Estudios",
-  "Salud",
-  "Personal",
-  "Side Projects",
-  "Finanzas",
-  "Networking",
-  "Otros"
-];
+// The canonical set is not duplicated here any more. It lives in
+// src/lib/categories.ts (CANONICAL_CATEGORIES) and the onboarding screen offers
+// it as *suggestions*; nothing on the server assigns categories to anybody.
+// Keeping a second copy here is what leaked "University" and "Job" into a
+// database that is otherwise Spanish — do not reintroduce one.
 
 declare global {
   // eslint-disable-next-line no-var
@@ -599,11 +589,18 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
   let tipoOptions = normalizeTipoOptions(row.tipo_options || []);
   let onboardingCompleted = Boolean(row.onboarding_completed);
 
+  // Repair a list that was lost while tasks survived: the categories those
+  // tasks carry are, by definition, the ones this person uses.
+  //
+  // ⚠️ It deliberately stops there. This used to fall through to
+  // DEFAULT_USER_TIPO_OPTIONS when the user had no tasks either — which meant a
+  // brand-new account was handed all eight canonical categories, written to the
+  // database, and then shown an onboarding screen asking "choose the ones you
+  // actually use" with every one of them already ticked. The likeliest action is
+  // to press Continue, and that is how somebody ends up owning five categories
+  // they never use. A read should not invent a preference and persist it.
   if (tipoOptions.length === 0) {
     tipoOptions = await getDistinctTaskTiposByUser(userId);
-    if (tipoOptions.length === 0) {
-      tipoOptions = [...DEFAULT_USER_TIPO_OPTIONS];
-    }
   }
 
   if (!onboardingCompleted) {

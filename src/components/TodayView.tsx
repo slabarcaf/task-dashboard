@@ -58,12 +58,16 @@ export function TodayView({
     { key: "done", title: "Ya está", rows: done }
   ] as Group[]).filter((group) => group.rows.length > 0);
 
+  // The only way every group is empty is that there are no tasks at all — a
+  // task that is Done still shows under "Ya está". So this is a first run, and
+  // telling someone who has never written a task that "nothing is left" reads
+  // like the app lost their data.
   if (groups.length === 0) {
     return (
       <EmptyState
-        icon="🌤"
-        title="No queda nada"
-        hint="Nada vencido, nada para hoy. Escribe algo arriba cuando aparezca."
+        icon="✍️"
+        title="Todavía no hay nada aquí"
+        hint="Escribe tu primera tarea arriba. Puedes decir la fecha en la misma frase: “pagar la luz el viernes”."
       />
     );
   }
