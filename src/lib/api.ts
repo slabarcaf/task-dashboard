@@ -185,3 +185,40 @@ export async function deleteAdminUser(userId: number, confirmEmail: string): Pro
   const data = await parseJsonOrThrow<{ ok: boolean; taskCount: number }>(response);
   return data.taskCount;
 }
+
+/* ─── Ajustes ─────────────────────────────────────────────────────────────── */
+
+export type TelegramLink = {
+  code: string;
+  deepLink: string;
+  qrDataUrl: string;
+  botUsername: string;
+  expiresAt: string;
+};
+
+export async function createTelegramLink(): Promise<TelegramLink> {
+  const response = await fetch("/api/telegram/link", { method: "POST" });
+  return parseJsonOrThrow<TelegramLink>(response);
+}
+
+export async function disconnectTelegram(): Promise<void> {
+  const response = await fetch("/api/telegram/link", { method: "DELETE" });
+  await parseJsonOrThrow<{ ok: boolean }>(response);
+}
+
+export type PreferencePatch = {
+  tipoOptions?: string[];
+  language?: "es" | "en";
+  timezone?: string;
+  briefMorning?: string;
+  briefEvening?: string;
+};
+
+export async function updatePreferences(patch: PreferencePatch): Promise<UserPreferences> {
+  const response = await fetch("/api/user/preferences", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch)
+  });
+  return parseJsonOrThrow<UserPreferences>(response);
+}

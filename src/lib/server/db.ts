@@ -18,6 +18,7 @@ type UserRow = {
   id: number;
   email: string;
   name: string;
+  telegram_chat_id?: string | null;
 };
 
 type UserPreferencesRow = {
@@ -47,6 +48,8 @@ export type DbUser = {
   id: number;
   email: string;
   name: string;
+  /** Null when unlinked, undefined when the query did not select it. */
+  telegramChatId?: string | null;
 };
 
 export type DbUserPreferences = {
@@ -111,7 +114,10 @@ function toUser(row: UserRow): DbUser {
   return {
     id: Number(row.id),
     email: row.email,
-    name: row.name
+    name: row.name,
+    // Undefined when the query did not ask for it, which is why it is optional
+    // on DbUser: only the callers that select it can report on it.
+    telegramChatId: row.telegram_chat_id ?? null
   };
 }
 
@@ -154,7 +160,7 @@ async function ensureOwnerUserAndBackfill(pool: Pool): Promise<void> {
      VALUES ($1, $2)
      ON CONFLICT (email)
      DO UPDATE SET name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name), updated_at = NOW()
-     RETURNING id, email, name`,
+     RETURNING id, email, name, telegram_chat_id`,
     [ownerEmail, ownerName]
   );
 
@@ -513,7 +519,7 @@ export async function redeemTelegramLinkCode(code: string, chatId: string): Prom
 
   const updated = await pool.query<UserRow>(
     `UPDATE users SET telegram_chat_id = $1, updated_at = NOW() WHERE id = $2
-     RETURNING id, email, name`,
+     RETURNING id, email, name, telegram_chat_id`,
     [chat, row.user_id]
   );
   await pool.query(
@@ -528,7 +534,7 @@ export async function findUserByTelegramChatId(chatId: string): Promise<DbUser |
   await initialize();
 
   const result = await getPool().query<UserRow>(
-    `SELECT id, email, name
+    `SELECT id, email, name, telegram_chat_id
      FROM users
      WHERE telegram_chat_id = $1
      LIMIT 1`,
@@ -543,7 +549,7 @@ export async function findUserByEmail(email: string): Promise<DbUser | null> {
   await initialize();
 
   const result = await getPool().query<UserRow>(
-    `SELECT id, email, name
+    `SELECT id, email, name, telegram_chat_id
      FROM users
      WHERE lower(email) = lower($1)
      LIMIT 1`,
@@ -558,7 +564,7 @@ export async function getUserById(id: number): Promise<DbUser | null> {
   await initialize();
 
   const result = await getPool().query<UserRow>(
-    `SELECT id, email, name
+    `SELECT id, email, name, telegram_chat_id
      FROM users
      WHERE id = $1
      LIMIT 1`,
@@ -634,8 +640,12 @@ function readPreferenceScalars(row: UserPreferencesRow) {
   return {
     language: row.language || "es",
     timezone: row.timezone || "America/Los_Angeles",
-    briefMorning: row.brief_morning || "07:00",
-    briefEvening: row.brief_evening || "20:00",
+    // `??`, not `||`. The empty string is a real value here — it is how a brief
+    // is turned off — and `||` coerced it straight back to the default, so the
+    // column stored "" while the API kept answering "20:00" and the brief kept
+    // firing. Stored correctly, read back wrong, is the worst of both.
+    briefMorning: row.brief_morning ?? "07:00",
+    briefEvening: row.brief_evening ?? "20:00",
     categoryKeywords: normalizeCategoryKeywords(row.category_keywords)
   };
 }
@@ -761,7 +771,7 @@ export async function createUser(input: {
   const result = await getPool().query<UserRow>(
     `INSERT INTO users (email, name, google_sub, updated_at)
      VALUES ($1, $2, $3, NOW())
-     RETURNING id, email, name`,
+     RETURNING id, email, name, telegram_chat_id`,
     [email, name, googleSub]
   );
 
@@ -784,7 +794,7 @@ export async function upsertGoogleUser(input: {
     await client.query("BEGIN");
 
     const byGoogleSub = await client.query<UserRow>(
-      `SELECT id, email, name
+      `SELECT id, email, name, telegram_chat_id
        FROM users
        WHERE google_sub = $1
        LIMIT 1`,
@@ -798,7 +808,7 @@ export async function upsertGoogleUser(input: {
              name = $2,
              updated_at = NOW()
          WHERE id = $3
-         RETURNING id, email, name`,
+         RETURNING id, email, name, telegram_chat_id`,
         [email, name, byGoogleSub.rows[0].id]
       );
       await client.query("COMMIT");
@@ -806,7 +816,7 @@ export async function upsertGoogleUser(input: {
     }
 
     const byEmail = await client.query<UserRow>(
-      `SELECT id, email, name
+      `SELECT id, email, name, telegram_chat_id
        FROM users
        WHERE lower(email) = lower($1)
        LIMIT 1`,
@@ -821,7 +831,7 @@ export async function upsertGoogleUser(input: {
              name = $2,
              updated_at = NOW()
          WHERE id = $3
-         RETURNING id, email, name`,
+         RETURNING id, email, name, telegram_chat_id`,
         [googleSub, name || existing.name, existing.id]
       );
       await client.query("COMMIT");
@@ -831,7 +841,7 @@ export async function upsertGoogleUser(input: {
     const created = await client.query<UserRow>(
       `INSERT INTO users (email, name, google_sub, updated_at)
        VALUES ($1, $2, $3, NOW())
-       RETURNING id, email, name`,
+       RETURNING id, email, name, telegram_chat_id`,
       [email, name, googleSub]
     );
 

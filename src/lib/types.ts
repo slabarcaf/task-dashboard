@@ -63,6 +63,8 @@ export type AuthUser = {
   name: string;
   /** Advisory: whether to offer the admin screen. The API re-checks on every call. */
   isAdmin?: boolean;
+  /** Whether a Telegram chat is connected. Drives which half of Settings shows. */
+  telegramLinked?: boolean;
 };
 
 export type AuthMeResponse = {

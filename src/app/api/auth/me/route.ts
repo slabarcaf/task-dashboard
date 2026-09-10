@@ -18,7 +18,8 @@ export async function GET() {
       name: user.name,
       // Advisory only — it decides whether a link is drawn, never what the
       // server will hand over. Every /api/admin route checks again.
-      isAdmin: isAdminUser(user)
+      isAdmin: isAdminUser(user),
+      telegramLinked: Boolean(user.telegramChatId)
     }
   });
 }

@@ -59,6 +59,13 @@ export function AppShell({
             >
               {theme === "dark" ? "☀" : "☾"}
             </IconButton>
+            <Link
+              href="/ajustes"
+              title="Ajustes"
+              className="rounded-field border border-line px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink"
+            >
+              Ajustes
+            </Link>
             {user.isAdmin && (
               <Link
                 href="/admin"

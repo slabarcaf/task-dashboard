@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { BoardView } from "@/components/BoardView";
 import { CommandPalette, PaletteCommand } from "@/components/CommandPalette";
@@ -43,6 +44,7 @@ import { AddTaskPayload, AuthUser, Task, TaskPatch } from "@/lib/types";
 const UI_LANGUAGE: AppLanguage = "es";
 
 export default function HomePage() {
+  const router = useRouter();
   const captureRef = useRef<HTMLInputElement | null>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
@@ -356,6 +358,8 @@ export default function HomePage() {
         run: () => captureRef.current?.focus()
       },
       { id: "today", label: "Ver Hoy", run: () => setView("today") },
+      { id: "settings", label: "Ajustes", run: () => router.push("/ajustes") },
+      { id: "telegram", label: "Conectar Telegram", run: () => router.push("/ajustes") },
       { id: "board", label: "Ver Tablero", run: () => setView("board") },
       {
         id: "theme",
@@ -364,7 +368,7 @@ export default function HomePage() {
       },
       { id: "reload", label: "Recargar tareas", run: () => void loadTasks() }
     ],
-    [loadTasks, theme, toggleTheme]
+    [loadTasks, router, theme, toggleTheme]
   );
 
   useEffect(() => {
