@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { cn } from "@/lib/cn";
 
 declare global {
   interface Window {
@@ -182,7 +183,13 @@ export function SignInScreen({
 }
 
 /** El logotipo. `night` sobre el panel oscuro, `day` sobre superficie clara. */
-export function Wordmark({ tone = "day" }: { tone?: "day" | "night" }) {
+export function Wordmark({
+  tone = "day",
+  hideWordOnMobile = false
+}: {
+  tone?: "day" | "night";
+  hideWordOnMobile?: boolean;
+}) {
   return (
     <div className="flex items-center gap-3">
       <span
@@ -195,11 +202,14 @@ export function Wordmark({ tone = "day" }: { tone?: "day" | "night" }) {
         S
       </span>
       <b
-        className={
-          tone === "night"
-            ? "font-display text-[17px] tracking-tight text-white"
-            : "font-display text-[17px] tracking-tight text-ink"
-        }
+        className={cn(
+          "font-display text-[17px] tracking-tight",
+          tone === "night" ? "text-white" : "text-ink",
+          // En el encabezado de la app la palabra se esconde en pantallas
+          // angostas: la marca sola ya identifica, y esos 60px son la
+          // diferencia entre un encabezado de una fila y uno de dos.
+          hideWordOnMobile && "hidden sm:block"
+        )}
       >
         Sydney
       </b>

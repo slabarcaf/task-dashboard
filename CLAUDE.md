@@ -24,11 +24,27 @@ Vercel construye cada push a `main` (proyecto `task-dashboard-c7q2`, cuenta
 `slabarcaf`). **El email del commit tiene que pertenecer a tu cuenta de GitHub o
 el deploy queda `Blocked`** — el README explica por qué y cómo se arregla.
 
+## Móvil y escritorio no son la misma pantalla
+
+El corte está en `sm` (640px), y es una decisión, no un accidente:
+
+- **La tarjeta de la lista** es una fila en escritorio (título izquierda, todo lo demás derecha, 41px) y se **apila** en el teléfono. Ahí el espacio escaso es el horizontal: la misma fila aplastaba los títulos hasta "Mand…".
+- **El encabezado** muestra palabras en escritorio e **iconos** en el teléfono, y el logotipo pierde la palabra "Sydney". Con las tres palabras se partía en dos filas y se comía 104px de 812.
+- **Las columnas del tablero** son 264px fijos en escritorio y **78vw** en el teléfono, para que se vea una entera y asome la siguiente.
+
+Al tocar cualquiera de estas tres, mide las dos anchuras. 1180 y 375 son las que uso.
+
 ## Comprobaciones
 
 ```bash
-npx tsc --noEmit && npm run lint && npm run build
+npm run check     # tsc + lint + tests, sin tocar .next
 ```
+
+⚠️ **Nunca corras `npm run build` con `npm run dev` levantado.** Comparten `.next`,
+el build de producción pisa los chunks que el dev está sirviendo, y cada ruta
+devuelve 500 con `Cannot find module './276.js'`. Se arregla con `rm -rf .next`.
+Por eso existe `npm run check` (no toca `.next`) y `npm run build:safe` (lo borra
+antes).
 
 La que más importa después de tocar la pantalla de acceso: cargarla sin sesión en
 el navegador y confirmar que el iframe de Google se renderiza de verdad.

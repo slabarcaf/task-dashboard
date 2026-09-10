@@ -56,7 +56,10 @@ export function BoardView({
             <div
               key={column.id}
               className={cn(
-                "flex w-[264px] flex-none flex-col gap-2 rounded-panel border p-3",
+                // 264px sobre 375 dejaba una astilla de la columna siguiente que no se
+                // lee ni se ignora. 78vw muestra una columna entera y asoma la de al
+                // lado lo justo para que se entienda que se desliza.
+                "flex w-[78vw] max-w-[300px] flex-none flex-col gap-2 rounded-panel border p-3 sm:w-[264px]",
                 column.tone === "today"
                   ? "border-brand/30 bg-brand-soft"
                   : column.tone === "late"

@@ -49,7 +49,7 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
   return (
     <form
       onSubmit={submit}
-      className="flex flex-wrap items-center gap-2 rounded-panel border border-line bg-surface px-3 py-2.5 shadow-card focus-within:border-brand/50"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-panel border border-line bg-surface px-3 py-2 shadow-card focus-within:border-brand/50 sm:gap-2 sm:py-2.5"
     >
       <span aria-hidden className="grid h-6 w-6 flex-none place-items-center text-lg text-ink-3">
         +
@@ -75,7 +75,7 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
         value={tipo}
         onChange={(event) => setTipo(event.target.value)}
         aria-label="Categoría"
-        className="rounded-field border border-line bg-sunken px-2 py-1 text-[12.5px] font-semibold text-ink-2 outline-none"
+        className="min-w-0 rounded-field border border-line bg-sunken px-2 py-1 text-[12.5px] font-semibold text-ink-2 outline-none"
       >
         {categories.map((option) => (
           <option key={option} value={option}>
@@ -87,7 +87,7 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
       <button
         type="submit"
         disabled={!parsed.title.trim() || busy || disabled}
-        className="rounded-field bg-brand px-3 py-1.5 text-[13px] font-semibold text-brand-ink transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="ml-auto rounded-field bg-brand px-3 py-1.5 text-[13px] font-semibold text-brand-ink transition-opacity disabled:cursor-not-allowed disabled:opacity-40 sm:ml-0"
       >
         {busy ? "…" : "Agregar"}
       </button>

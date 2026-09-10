@@ -29,8 +29,8 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-bg">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-5 py-3 sm:px-7">
-          <Wordmark />
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-7 sm:py-3">
+          <Wordmark hideWordOnMobile />
 
           <nav className="flex rounded-field border border-line bg-sunken p-0.5" aria-label="Vista">
             <ViewTab active={view === "today"} onClick={() => onViewChange("today")}>
@@ -52,35 +52,27 @@ export function AppShell({
             </kbd>
           </button>
 
-          <div className="ml-auto flex items-center gap-1.5 sm:ml-0">
+          {/* Iconos en el teléfono, palabras cuando hay ancho. Con las tres
+              palabras el encabezado se partía en dos filas y se comía 104px de
+              una pantalla de 812. */}
+          <div className="ml-auto flex flex-none items-center gap-1.5 sm:ml-0">
             <IconButton
               label={theme === "dark" ? "Modo claro" : "Modo oscuro"}
               onClick={onToggleTheme}
             >
               {theme === "dark" ? "☀" : "☾"}
             </IconButton>
-            <Link
-              href="/ajustes"
-              title="Ajustes"
-              className="rounded-field border border-line px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink"
-            >
-              Ajustes
-            </Link>
-            {user.isAdmin && (
-              <Link
-                href="/admin"
-                className="rounded-field border border-line px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink"
-              >
-                Usuarios
-              </Link>
-            )}
+            <HeaderLink href="/ajustes" label="Ajustes" icon="⚙" />
+            {user.isAdmin && <HeaderLink href="/admin" label="Usuarios" icon="◍" />}
             <button
               type="button"
               onClick={onLogout}
               title={user.email}
-              className="rounded-field border border-line px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink"
+              aria-label="Salir"
+              className="grid h-[31px] w-[31px] place-items-center rounded-field border border-line text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink sm:h-auto sm:w-auto sm:px-2.5 sm:py-1.5"
             >
-              Salir
+              <span aria-hidden className="sm:hidden">⇥</span>
+              <span className="hidden sm:inline">Salir</span>
             </button>
           </div>
         </div>
@@ -88,6 +80,20 @@ export function AppShell({
 
       <main className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-7">{children}</main>
     </div>
+  );
+}
+
+function HeaderLink({ href, label, icon }: { href: string; label: string; icon: string }) {
+  return (
+    <Link
+      href={href}
+      title={label}
+      aria-label={label}
+      className="grid h-[31px] w-[31px] place-items-center rounded-field border border-line text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink sm:h-auto sm:w-auto sm:px-2.5 sm:py-1.5"
+    >
+      <span aria-hidden className="sm:hidden">{icon}</span>
+      <span className="hidden sm:inline">{label}</span>
+    </Link>
   );
 }
 
