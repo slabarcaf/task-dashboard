@@ -101,3 +101,35 @@ body {
 .num {
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Cuán vencida está ────────────────────────────────────────────────────
+   Cuatro escalones de rojo, mezclados contra la superficie en vez de fijados
+   como hex: así el mismo escalón funciona en claro y en oscuro sin una segunda
+   tabla que se desincronice.
+
+   El tope es 14% a propósito. El color aquí es un susurro, no una alarma: una
+   tarjeta que grita compite con el borde izquierdo, que ya dice "vencida", y
+   una lista donde todo grita no prioriza nada.                              */
+.late-1 { background: color-mix(in srgb, var(--late) 4%,  var(--surface)); }
+.late-2 { background: color-mix(in srgb, var(--late) 7%,  var(--surface)); }
+.late-3 { background: color-mix(in srgb, var(--late) 10%, var(--surface)); }
+.late-4 { background: color-mix(in srgb, var(--late) 14%, var(--surface)); }
+
+/* ─── Color por categoría ──────────────────────────────────────────────────
+   Un solo tono por chip, elegido por `--cat-h`, con saturación y luminosidad
+   fijas. Eso garantiza contraste parejo sin mantener una tabla de pares de
+   colores, y admite categorías que el usuario invente.
+
+   ⚠️ La paleta evita a propósito la franja 0–45° (rojos y ámbares): esos tonos
+   son del estado — vencida y prioridad — y una categoría roja se leería como
+   una tarea atrasada.                                                        */
+.cat-chip {
+  background: hsl(var(--cat-h) 70% 93%);
+  color: hsl(var(--cat-h) 52% 30%);
+  border-color: hsl(var(--cat-h) 45% 84%);
+}
+:root[data-theme="dark"] .cat-chip {
+  background: hsl(var(--cat-h) 36% 21%);
+  color: hsl(var(--cat-h) 68% 76%);
+  border-color: hsl(var(--cat-h) 34% 32%);
+}

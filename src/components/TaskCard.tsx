@@ -2,6 +2,7 @@
 
 import { AppLanguage, categoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/cn";
+import { categoryHue } from "@/lib/categoryColor";
 import { daysBetweenIsoDates, formatShortDate, relativeDueLabel } from "@/lib/date";
 import { normalizeStatus } from "@/lib/taskFilters";
 import { Task } from "@/lib/types";
@@ -49,69 +50,102 @@ export function TaskCard({
   // needs the date, and the relative part only earns its place as a nudge.
   const dueText = dueLabel(task.dueDateNextStep, today, language);
   const compact = density === "board";
+  const daysLate = isOverdue ? -daysBetweenIsoDates(today, task.dueDateNextStep) : 0;
 
   return (
     <article
       className={cn(
-        "group relative flex items-start gap-3 border border-line bg-surface shadow-card transition-[border-color,transform,opacity] duration-150",
+        "group relative flex gap-3 border border-line shadow-card transition-[border-color,transform,opacity] duration-150",
         "hover:-translate-y-px hover:border-line-2 focus-within:border-line-2",
-        compact ? "rounded-card py-2.5 pl-3 pr-3" : "rounded-panel py-3 pl-4 pr-4",
+        // One row in list density: the meta used to sit *under* the title, so
+        // eight tasks did not fit on a screen. Everything that is not the title
+        // now lives to its right.
+        //
+        // ⚠️ Only from `sm` up. On a 375px phone the same row squeezed titles
+        // down to "Mand…" and some to nothing at all — horizontal space is the
+        // scarce one there, and vertical is free because you scroll anyway.
+        compact
+          ? "flex-col rounded-card px-3 py-2.5"
+          : "flex-col rounded-panel px-3.5 py-2 sm:flex-row sm:items-center",
         // The left edge carries the one thing worth seeing without reading:
         // late first, then priority. Never both, so the signal stays single.
         isOverdue && "border-l-[3px] border-l-late",
         !isOverdue && task.isPriority && "border-l-[3px] border-l-amber",
+        // The fill deepens with how long it has been late. See globals.css for
+        // why it tops out where it does.
+        isOverdue ? overdueFillClass(daysLate) : "bg-surface",
         isPending && "pointer-events-none opacity-60"
       )}
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={isDone}
-        aria-label={isDone ? "Marcar como pendiente" : "Marcar como hecha"}
-        onClick={() => onToggleDone(task)}
-        className={cn(
-          "mt-0.5 flex-none rounded-full border-[1.7px] transition-colors",
-          compact ? "h-[17px] w-[17px]" : "h-5 w-5",
-          isDone ? "border-ok bg-ok" : "border-line-2 bg-surface group-hover:border-ok"
-        )}
-      />
-
-      <div className="min-w-0 flex-1">
-        <div
+      <div className={cn("flex min-w-0 flex-1 items-center gap-3", compact && "w-full")}>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isDone}
+          aria-label={isDone ? "Marcar como pendiente" : "Marcar como hecha"}
+          onClick={() => onToggleDone(task)}
           className={cn(
-            "break-words font-medium leading-snug",
-            compact ? "text-[13.8px]" : "text-[14.8px]",
-            isDone ? "text-ink-3 line-through" : "text-ink"
+            "flex-none rounded-full border-[1.7px] transition-colors",
+            compact ? "h-[17px] w-[17px]" : "h-[18px] w-[18px]",
+            isDone ? "border-ok bg-ok" : "border-line-2 bg-surface group-hover:border-ok"
           )}
-        >
-          {task.toDo}
-        </div>
+        />
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          {task.isPriority && (
-            <span className="rounded-chip bg-amber-soft px-2.5 py-0.5 text-[11.5px] font-semibold text-amber-ink">
-              🔥 {language === "en" ? "Priority" : "Prioridad"}
-            </span>
-          )}
-          {task.tipo && (
-            <span className="rounded-chip border border-line bg-sunken px-2.5 py-0.5 text-[11.5px] font-semibold text-ink-2">
-              {categoryLabel(task.tipo, language)}
-            </span>
-          )}
-          {dueText && (
-            <span
-              className={cn(
-                "num text-[11.5px] font-semibold",
-                isOverdue ? "font-bold text-late" : "text-ink-3"
-              )}
-            >
-              {dueText}
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span
+            className={cn(
+              "min-w-0 font-medium leading-snug",
+              compact ? "break-words text-[13.8px]" : "break-words text-[14.5px] sm:truncate",
+              isDone ? "text-ink-3 line-through" : "text-ink"
+            )}
+            title={task.toDo}
+          >
+            {task.toDo}
+          </span>
+          {!compact && task.nextStep && (
+            <span className="hidden min-w-0 flex-none truncate text-[12.5px] text-ink-3 lg:block lg:max-w-[30%]">
+              ↳ {task.nextStep}
             </span>
           )}
         </div>
+      </div>
 
-        {!compact && task.nextStep && (
-          <p className="mt-1.5 truncate text-[12.5px] text-ink-3">↳ {task.nextStep}</p>
+      <div
+        className={cn(
+          "flex flex-none items-center gap-2",
+          // The right padding reserves room for the hover overlay so it never
+          // lands on the date. Not needed while stacked: the meta is on its own
+          // line there and the overlay sits above it.
+          compact
+            ? "mt-1.5 flex-wrap pl-[29px]"
+            : "mt-1.5 flex-wrap pl-[30px] sm:mt-0 sm:flex-nowrap sm:pl-0 sm:pr-[124px]"
+        )}
+      >
+        {task.isPriority && (
+          <span
+            className="rounded-chip bg-amber-soft px-2 py-0.5 text-[11.5px] font-semibold text-amber-ink"
+            title={language === "en" ? "Priority" : "Prioridad"}
+          >
+            🔥
+          </span>
+        )}
+        {task.tipo && (
+          <span
+            className="cat-chip rounded-chip border px-2.5 py-0.5 text-[11.5px] font-semibold"
+            style={{ "--cat-h": categoryHue(task.tipo) } as React.CSSProperties}
+          >
+            {categoryLabel(task.tipo, language)}
+          </span>
+        )}
+        {dueText && (
+          <span
+            className={cn(
+              "num whitespace-nowrap text-[11.5px] font-semibold",
+              isOverdue ? "font-bold text-late" : "text-ink-3"
+            )}
+          >
+            {dueText}
+          </span>
         )}
       </div>
 
@@ -132,6 +166,18 @@ export function TaskCard({
       </div>
     </article>
   );
+}
+
+/**
+ * How late is late. Four steps rather than a continuous ramp: at these opacities
+ * the eye cannot tell 9 days from 11, and steps make "much later than that one"
+ * legible at a glance, which a smooth gradient does not.
+ */
+function overdueFillClass(daysLate: number): string {
+  if (daysLate >= 14) return "late-4";
+  if (daysLate >= 7) return "late-3";
+  if (daysLate >= 3) return "late-2";
+  return "late-1";
 }
 
 /** "Hoy", "Mañana", "31-Ago · hace 5 días", "15-Sep". Empty when there is no date. */

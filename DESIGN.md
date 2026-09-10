@@ -139,10 +139,20 @@ ignoran mientras estás escribiendo — si no, la `n` de "renovar" te robaría e
 foco a media palabra. Faltan `j`/`k` para navegar entre tarjetas y `x` para
 completar: van cuando haya una noción de "tarjeta seleccionada".
 
-**El chip de categoría es neutro.** Un color por categoría no escala: las
-categorías son definidas por el usuario, y a la sexta el arcoíris deja de
-comunicar. La jerarquía cromática se reserva para el estado (vencido, prioridad,
-listo), que es lo que sí hay que ver de reojo.
+**El chip de categoría tiene color, y el tono se calcula.** La versión anterior
+de esta regla decía lo contrario —chip neutro, porque un color por categoría no
+escala cuando el usuario las inventa— y estaba equivocada en el caso de todos los
+días: una lista de ocho chips grises es una lista que hay que *leer*. Con color
+se agrupan de un vistazo.
+
+Escala porque nadie mantiene una tabla: el tono sale del nombre
+(`src/lib/categoryColor.ts`), y la saturación y luminosidad son fijas en CSS, así
+que el contraste es parejo y una categoría inventada recibe su color sola. Las
+canónicas están fijadas para que no cambien entre despliegues ni entre cuentas.
+
+⚠️ **La paleta evita la franja 0–45°** — rojos y ámbares. Esos tonos significan
+*estado* (vencida, prioridad) y una categoría roja se leería como una tarea
+atrasada.
 
 ---
 
@@ -220,3 +230,32 @@ día que no era.
 Vive en `src/lib/parseTaskInput.ts` y tiene tests (`npm test`). El primero que
 falló fue "pasado mañana": la regla de "mañana" calzaba adentro y dejaba un
 "pasado" pegado al título. El orden de las reglas importa.
+
+
+---
+
+## Densidad de la lista
+
+La tarjeta de la vista Hoy es **una sola fila**: título a la izquierda, y todo lo
+demás —prioridad, categoría, fecha— a la derecha. Antes el meta iba *debajo* del
+título y una tarjeta medía ~90px, así que con ocho tareas ya había que hacer
+scroll. Ahora mide **41px** y caben doce en una pantalla.
+
+**Solo desde `sm` hacia arriba.** En un teléfono de 375px esa misma fila aplasta
+el título hasta "Mand…" o hasta nada: ahí el espacio escaso es el horizontal, y
+el vertical es gratis porque igual haces scroll. Bajo `sm` se apila.
+
+El bloque de meta reserva 124px a la derecha para que la capa de acciones del
+hover nunca caiga encima de la fecha.
+
+## Cuán vencida está
+
+Cuatro escalones de rojo (`late-1`…`late-4` en `globals.css`), mezclados con
+`color-mix` contra la superficie en vez de fijados como hex — así el mismo
+escalón sirve en claro y en oscuro sin una segunda tabla que se desincronice.
+
+Escalones y no un degradado continuo: a estas opacidades el ojo no distingue 9
+días de 11, y los saltos hacen legible "esta lleva mucho más que esa".
+
+**El tope es 14% a propósito.** El color aquí es un susurro, no una alarma: el
+borde izquierdo ya dice "vencida", y una lista donde todo grita no prioriza nada.

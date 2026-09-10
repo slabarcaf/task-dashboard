@@ -57,7 +57,9 @@ export default function HomePage() {
   const [isSavingOnboarding, setIsSavingOnboarding] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"today" | "board">("today");
+  // El tablero es la vista por defecto: da la forma de la semana de un vistazo,
+  // que es lo que se quiere al abrir. "Hoy" es la lista para trabajar dentro.
+  const [view, setView] = useState<"today" | "board">("board");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
