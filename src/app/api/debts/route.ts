@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { DbUser, createDebtForUser, listDebtsByUser } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

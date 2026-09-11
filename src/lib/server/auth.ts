@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import {
   DbUser,
@@ -112,4 +112,47 @@ export async function getBotUserIfAuthorized(request: NextRequest): Promise<DbUs
     return null;
   }
   return user;
+}
+
+/**
+ * Segunda cerradura contra CSRF.
+ *
+ * La cookie ya es `SameSite=Lax`, que en los navegadores de hoy basta para que
+ * un POST desde otro sitio no la lleve. Basta *hoy*: el día que alguien ponga
+ * `sameSite: "none"` por una razón que parecerá buena, o que esto corra dentro
+ * de un webview que no aplique Lax por defecto, no queda nada. Y `transcribe`
+ * recibe `multipart/form-data`, que es exactamente lo que un formulario ajeno
+ * sí puede enviar.
+ *
+ * Se acepta una petición **sin** `Origin` a propósito: así llegan el bot y
+ * cualquier cliente que no sea un navegador, y esos ya se autentican con el
+ * bearer. Lo que se rechaza es un `Origin` presente que no es el nuestro —
+ * justo lo que manda un navegador en una petición entre sitios.
+ *
+ * Lee de `next/headers` y no del `NextRequest` para que sirva igual en los
+ * handlers que no reciben la petición (`/api/auth/logout`, `/api/telegram/link`).
+ */
+export function originIsTrusted(): boolean {
+  const incoming = headers();
+  const origin = incoming.get("origin");
+  if (!origin) return true;
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return false;
+  }
+
+  // Detrás del proxy de Vercel el host real llega reenviado; comparar solo
+  // contra `host` rechazaría peticiones legítimas del propio dominio.
+  const candidates = [incoming.get("x-forwarded-host"), incoming.get("host")].filter(
+    (value): value is string => Boolean(value)
+  );
+  return candidates.some((host) => host === originHost);
+}
+
+/** El mismo rechazo para todos, para que ninguna ruta invente su propio texto. */
+export function crossOriginRefused(): NextResponse {
+  return NextResponse.json({ ok: false, error: "Origen no permitido." }, { status: 403 });
 }

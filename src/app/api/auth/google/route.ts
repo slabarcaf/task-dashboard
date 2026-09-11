@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setSessionCookie, createUserSession } from "@/lib/server/auth";
+import { createUserSession, crossOriginRefused, originIsTrusted, setSessionCookie } from "@/lib/server/auth";
 import { verifyGoogleCredential } from "@/lib/server/google-auth";
 import { linkGoogleIdentity } from "@/lib/server/db";
 import { LIMITS, clientIp, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
@@ -21,6 +21,7 @@ export const runtime = "nodejs";
  * regalarle a alguien con una lista de correos y paciencia.
  */
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   // Antes de verificar nada: comprobar un ID token es una llamada a Google, así
   // que también cuesta cuando falla.
   const gate = await consumeRateLimit(`signin:${clientIp(request)}`, LIMITS.signIn);

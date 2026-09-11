@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { DbUser, getUserPreferencesByUserId } from "@/lib/server/db";
 import { buildVoicePrompt } from "@/lib/voicePrompt";
 import { LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
@@ -34,6 +34,7 @@ async function resolveUser(request: NextRequest): Promise<DbUser | null> {
  * creada en silencio a partir de una frase mal oída es peor que no tener voz.
  */
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

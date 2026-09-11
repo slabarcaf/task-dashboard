@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDbTaskForUser, listDbTasksByUser } from "@/lib/server/db";
 import { computeStatusNextStep } from "@/lib/server/status";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -30,14 +30,17 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ tasks: await listDbTasksByUser(user.id) });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[tasks]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to list tasks" },
+      { ok: false, error: "Failed to list tasks" },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
@@ -95,8 +98,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, rowId });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[tasks]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to add task" },
+      { ok: false, error: "Failed to add task" },
       { status: 500 }
     );
   }

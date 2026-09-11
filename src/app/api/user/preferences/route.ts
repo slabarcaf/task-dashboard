@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import {
   DbUser,
   PreferencePatch,
@@ -30,14 +30,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(await getUserPreferencesByUserId(user.id));
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[preferences]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to load preferences" },
+      { ok: false, error: "Failed to load preferences" },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = await resolveUser(request);
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -95,8 +98,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(await saveUserPreferencesByUserId(user.id, patch));
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[preferences]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to save preferences" },
+      { ok: false, error: "Failed to save preferences" },
       { status: 500 }
     );
   }

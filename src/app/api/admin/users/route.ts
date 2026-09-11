@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
 import { sendInviteEmail } from "@/lib/server/mail";
 import { LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
@@ -72,6 +72,7 @@ export async function GET() {
  * tomó allá: `linkGoogleIdentity` devuelve null y nadie entra.)
  */
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const user = await getCurrentUserFromCookies();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isAdminUser(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

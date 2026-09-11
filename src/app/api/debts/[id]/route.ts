@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { DbUser, deleteDebtForUser, updateDebtForUser } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -16,6 +16,7 @@ async function resolveUser(request: NextRequest): Promise<DbUser | null> {
  * shape of isolation the tasks routes use.
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -32,6 +33,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

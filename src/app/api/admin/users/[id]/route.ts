@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
 import {
   deleteUserAndTheirTasks,
@@ -24,6 +24,7 @@ function parseId(params: { id: string }): number | null {
 
 /** Actions that change an account without destroying anything: reset, unlink. */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
@@ -55,6 +56,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
  * for a deleted account, and an id in a URL is far too easy to get wrong.
  */
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!originIsTrusted()) return crossOriginRefused();
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const admin = auth.admin!;

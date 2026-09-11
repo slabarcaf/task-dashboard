@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDbTaskForUser, deleteDbTaskForUser, getDbTaskByIdForUser, updateDbTaskForUser } from "@/lib/server/db";
 import { computeStatusNextStep } from "@/lib/server/status";
-import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getBotUserIfAuthorized, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -46,6 +46,7 @@ export async function DELETE(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
@@ -64,8 +65,10 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[tasks/[id]]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to delete task" },
+      { ok: false, error: "Failed to delete task" },
       { status: 500 }
     );
   }
@@ -75,6 +78,7 @@ export async function PATCH(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = (await getBotUserIfAuthorized(request)) ?? (await getCurrentUserFromCookies());
     if (!user) {
@@ -183,8 +187,10 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[tasks/[id]]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed to update task" },
+      { ok: false, error: "Failed to update task" },
       { status: 500 }
     );
   }

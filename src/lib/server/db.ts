@@ -700,14 +700,29 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
     }
   }
 
-  await getPool().query(
-    `UPDATE users
-     SET onboarding_completed = $1,
-         tipo_options = $2::text[],
-         updated_at = NOW()
-     WHERE id = $3`,
-    [onboardingCompleted, tipoOptions, userId]
-  );
+  // Solo se escribe cuando la reparación cambió algo de verdad.
+  //
+  // Antes escribía en **toda** lectura, y eso convertía a `GET /api/user/preferences`
+  // en una ruta que muta: ningún razonamiento sobre CSRF cubre un GET, y un
+  // prefetch del navegador o un rastreador alcanzaban para dispararlo. La
+  // reparación en sí vale la pena y se queda; lo que sobraba era el UPDATE en el
+  // camino normal, que es el 99% de las veces y no cambiaba ni un campo.
+  const storedTipos = normalizeTipoOptions(row.tipo_options || []);
+  const repaired =
+    onboardingCompleted !== Boolean(row.onboarding_completed) ||
+    storedTipos.length !== tipoOptions.length ||
+    storedTipos.some((value, index) => value !== tipoOptions[index]);
+
+  if (repaired) {
+    await getPool().query(
+      `UPDATE users
+       SET onboarding_completed = $1,
+           tipo_options = $2::text[],
+           updated_at = NOW()
+       WHERE id = $3`,
+      [onboardingCompleted, tipoOptions, userId]
+    );
+  }
 
   return {
     onboardingCompleted,
@@ -946,6 +961,27 @@ export async function linkGoogleIdentity(input: {
   }
 }
 
+/**
+ * Lo que se guarda es el **hash** del token, no el token.
+ *
+ * La cookie lleva 256 bits de azar y la tabla guarda su SHA-256, igual que una
+ * contraseña. Un volcado de la base, un respaldo perdido o una inyección de solo
+ * lectura dejaban de ser "vieron datos" para ser "entraron como esa persona":
+ * el valor de la columna *era* la llave. Ahora no sirve de nada.
+ *
+ * SHA-256 sin sal y sin estirar, a propósito: esto no es una contraseña que
+ * alguien eligió y repite en otros sitios, es un valor aleatorio de 256 bits. No
+ * hay diccionario que lo adivine, así que bcrypt solo agregaría latencia a cada
+ * petición autenticada.
+ *
+ * ⚠️ **Al desplegar esto, las sesiones vivas dejan de valer** — los hashes no
+ * coinciden con los tokens guardados en claro. Todo el mundo vuelve a entrar una
+ * vez. Con tres usuarios, migrar en vez de eso costaba más de lo que ahorraba.
+ */
+function hashSessionToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export async function createSession(userId: number, expiresAt: Date): Promise<string> {
   await initialize();
 
@@ -953,14 +989,21 @@ export async function createSession(userId: number, expiresAt: Date): Promise<st
   await getPool().query(
     `INSERT INTO sessions (token, user_id, expires_at)
      VALUES ($1, $2, $3::timestamptz)`,
-    [token, userId, expiresAt.toISOString()]
+    [hashSessionToken(token), userId, expiresAt.toISOString()]
   );
   return token;
 }
 
 export async function deleteSession(token: string): Promise<void> {
   await initialize();
-  await getPool().query(`DELETE FROM sessions WHERE token = $1`, [token]);
+  await getPool().query(`DELETE FROM sessions WHERE token = $1`, [hashSessionToken(token)]);
+}
+
+/** Cerrar sesión en todas partes: lo que hay que poder hacer si una se escapa. */
+export async function deleteSessionsForUser(userId: number): Promise<number> {
+  await initialize();
+  const result = await getPool().query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+  return result.rowCount || 0;
 }
 
 export async function getUserBySessionToken(token: string): Promise<DbUser | null> {
@@ -973,7 +1016,7 @@ export async function getUserBySessionToken(token: string): Promise<DbUser | nul
      WHERE s.token = $1
        AND s.expires_at > NOW()
      LIMIT 1`,
-    [token]
+    [hashSessionToken(token)]
   );
 
   if (result.rowCount === 0) return null;

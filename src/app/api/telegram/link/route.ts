@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { NextResponse } from "next/server";
 import { createTelegramLinkCode, unlinkTelegramForUser } from "@/lib/server/db";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
+import { crossOriginRefused, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -26,6 +26,7 @@ const BOT_USERNAME = (process.env.NEXT_PUBLIC_TELEGRAM_BOT || "Melizion_bot").re
  * codes would let anyone holding it claim any account.
  */
 export async function POST() {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = await getCurrentUserFromCookies();
     if (!user) {
@@ -53,8 +54,10 @@ export async function POST() {
       expiresAt: expiresAt.toISOString()
     });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[telegram/link]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Could not create a code" },
+      { ok: false, error: "Could not create a code" },
       { status: 500 }
     );
   }
@@ -67,6 +70,7 @@ export async function POST() {
  * can only ever act on the session's own account, so there is no id to get wrong.
  */
 export async function DELETE() {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const user = await getCurrentUserFromCookies();
     if (!user) {
@@ -75,8 +79,10 @@ export async function DELETE() {
     await unlinkTelegramForUser(user.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[telegram/link]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Could not disconnect" },
+      { ok: false, error: "Could not disconnect" },
       { status: 500 }
     );
   }

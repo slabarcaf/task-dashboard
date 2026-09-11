@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { redeemTelegramLinkCode } from "@/lib/server/db";
+import { crossOriginRefused, originIsTrusted } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ function secretMatches(provided: string, expected: string): boolean {
  * fallback would hand the owner's tasks to whoever sent the command.
  */
 export async function POST(request: NextRequest) {
+  if (!originIsTrusted()) return crossOriginRefused();
   try {
     const secret = process.env.OPENCLAW_API_SECRET;
     if (!secret) {
@@ -44,8 +46,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, user: { name: result.user.name, email: result.user.email } });
   } catch (error) {
+    // El detalle va al log del servidor: el mensaje de `pg` trae SQL y columnas.
+    console.warn("[telegram/redeem]", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Could not link the account" },
+      { ok: false, error: "Could not link the account" },
       { status: 500 }
     );
   }

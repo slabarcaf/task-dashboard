@@ -19,6 +19,12 @@ const BASE = process.env.BASE || "https://task-dashboard-c7q2.vercel.app";
 const SECRET = env.OPENCLAW_API_SECRET;
 const EMAIL = "sync-selftest@example.invalid";
 const CHAT = "555000111222";
+// La prueba de aislamiento necesita OTRA cuenta real, no un chat inexistente:
+// un chat sin fila da 401 y lo que queremos comprobar es el 404 de "existe, pero
+// no es tuya". Antes esto usaba el chat id de una persona de verdad, commiteado
+// en el repo. Ahora la segunda cuenta también es desechable y se borra igual.
+const EMAIL_B = "sync-selftest-b@example.invalid";
+const CHAT_B = "555000333444";
 const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 const q=(s,p)=>pool.query(s,p);
 
@@ -27,13 +33,17 @@ const check=(ok,label,extra="")=>{ ok?pass++:fail++; console.log(`${ok?"✅":"�
 
 const before=(await q(`SELECT (SELECT COUNT(*) FROM users)::int u,(SELECT COUNT(*) FROM tasks)::int t,(SELECT COUNT(*) FROM debts)::int d`)).rows[0];
 
-for(const r of (await q(`SELECT id FROM users WHERE email=$1`,[EMAIL])).rows){
+for(const r of (await q(`SELECT id FROM users WHERE email=ANY($1::text[])`,[[EMAIL,EMAIL_B]])).rows){
   await q(`DELETE FROM debts WHERE user_id=$1`,[r.id]); await q(`DELETE FROM tasks WHERE user_id=$1`,[r.id]); await q(`DELETE FROM users WHERE id=$1`,[r.id]);}
 
-const uid=Number((await q(`INSERT INTO users (email,name,onboarding_completed,tipo_options,telegram_chat_id,language,timezone,brief_morning,brief_evening)
-  VALUES ($1,'Sync Test',TRUE,ARRAY['Personal','Finanzas','Otros']::text[],$2,'es','America/Los_Angeles','07:00','20:00') RETURNING id`,[EMAIL,CHAT])).rows[0].id);
+const mkUser=async(email,name,chat)=>Number((await q(`INSERT INTO users (email,name,onboarding_completed,tipo_options,telegram_chat_id,language,timezone,brief_morning,brief_evening)
+  VALUES ($1,$2,TRUE,ARRAY['Personal','Finanzas','Otros']::text[],$3,'es','America/Los_Angeles','07:00','20:00') RETURNING id`,[email,name,chat])).rows[0].id);
+const uid=await mkUser(EMAIL,'Sync Test',CHAT);
+const uidB=await mkUser(EMAIL_B,'Sync Test B',CHAT_B);
 const token=crypto.randomBytes(32).toString("hex");
-await q(`INSERT INTO sessions (token,user_id,expires_at) VALUES ($1,$2,NOW()+INTERVAL '20 minutes')`,[token,uid]);
+// La tabla guarda el SHA-256, no el token (ver `hashSessionToken` en db.ts).
+const tokenHash=crypto.createHash("sha256").update(token).digest("hex");
+await q(`INSERT INTO sessions (token,user_id,expires_at) VALUES ($1,$2,NOW()+INTERVAL '20 minutes')`,[tokenHash,uid]);
 
 const WEB={Cookie:`taskdash_session=${token}`,"Content-Type":"application/json"};
 const BOT={Authorization:`Bearer ${SECRET}`,"X-Telegram-Chat-Id":CHAT,"Content-Type":"application/json"};
@@ -87,14 +97,15 @@ check(webPrefs.briefMorning==="06:15","escritura parcial: el brief que puso la w
 check(webPrefs.tipoOptions.includes("Viajes"),"escritura parcial: las categorías sobrevivieron");
 
 console.log("\n── AISLAMIENTO ──");
-const otro=await send(`/api/tasks/${target.rowId}`,{Authorization:`Bearer ${SECRET}`,"X-Telegram-Chat-Id":"<owner-chat-id>","Content-Type":"application/json"},"PATCH",{patch:{toDo:"secuestrada"}});
+const otro=await send(`/api/tasks/${target.rowId}`,{Authorization:`Bearer ${SECRET}`,"X-Telegram-Chat-Id":CHAT_B,"Content-Type":"application/json"},"PATCH",{patch:{toDo:"secuestrada"}});
 check(otro.status===404,"otro chat no puede tocar esta tarea", `HTTP ${otro.status}`);
 const sigue=((await get("/api/tasks",WEB)).tasks||[]).find(t=>t.rowId===target.rowId);
 check(sigue?.toDo==="creada en la WEB","...y el título quedó intacto", sigue?.toDo);
 
-await q(`DELETE FROM debts WHERE user_id=$1`,[uid]);
-await q(`DELETE FROM tasks WHERE user_id=$1`,[uid]);
-await q(`DELETE FROM users WHERE id=$1`,[uid]);
+for(const id of [uid,uidB]){
+  await q(`DELETE FROM debts WHERE user_id=$1`,[id]);
+  await q(`DELETE FROM tasks WHERE user_id=$1`,[id]);
+  await q(`DELETE FROM users WHERE id=$1`,[id]);}
 const after=(await q(`SELECT (SELECT COUNT(*) FROM users)::int u,(SELECT COUNT(*) FROM tasks)::int t,(SELECT COUNT(*) FROM debts)::int d`)).rows[0];
 console.log(`\nantes: users=${before.u} tasks=${before.t} debts=${before.d}`);
 console.log(`después: users=${after.u} tasks=${after.t} debts=${after.d}`);
