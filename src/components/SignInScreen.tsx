@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 declare global {
@@ -113,13 +114,13 @@ export function SignInScreen({
         <div className="relative flex flex-1 flex-col">
           <Wordmark tone="night" />
 
-          <h1 className="mt-12 max-w-[16ch] font-display text-[clamp(30px,3.6vw,44px)] font-bold leading-[1.12] tracking-tight">
-            Tu vida <span className="text-amber">entera</span>, en una sola lista.
+          <h1 className="mt-12 max-w-[17ch] font-display text-[clamp(30px,3.6vw,44px)] font-bold leading-[1.12] tracking-tight">
+            Tus pendientes, y <span className="text-amber">alguien</span> que te los recuerda.
           </h1>
           <p className="mt-5 max-w-[40ch] text-[15.5px] leading-relaxed text-[#B9BEE0]">
-            Lo que tienes que hacer hoy, lo que dejaste para el viernes y lo que llevas tres semanas
-            postergando. Sydney lo junta todo en un solo lugar y te lo devuelve ordenado, para que no
-            tengas que acordarte de nada.
+            Anótalos escribiéndole a Sydney como le escribirías a una persona — “pagar la luz el
+            viernes” — o ábrelos aquí y ordénalos con el mouse. Ella te los devuelve puestos en
+            orden, sin que tengas que ir a buscarlos.
           </p>
 
           {/* El arco del día. Muestra las 7:00 y las 20:00 porque esa es la
@@ -182,16 +183,28 @@ export function SignInScreen({
   );
 }
 
-/** El logotipo. `night` sobre el panel oscuro, `day` sobre superficie clara. */
+/**
+ * El logotipo. `night` sobre el panel oscuro, `day` sobre superficie clara.
+ *
+ * Con `href` es un enlace, y en la app siempre lo es: apretar el logo para
+ * volver al inicio es lo primero que intenta cualquiera cuando se pierde en una
+ * pantalla secundaria, y no hacerlo deja a la persona sin salida evidente.
+ */
 export function Wordmark({
   tone = "day",
-  hideWordOnMobile = false
+  hideWordOnMobile = false,
+  href
 }: {
   tone?: "day" | "night";
   hideWordOnMobile?: boolean;
+  href?: string;
 }) {
-  return (
-    <div className="flex items-center gap-3">
+  const className = cn(
+    "flex items-center gap-3",
+    href && "rounded-field transition-opacity hover:opacity-80"
+  );
+  const inner = (
+    <>
       <span
         className={
           tone === "night"
@@ -213,6 +226,14 @@ export function Wordmark({
       >
         Sydney
       </b>
-    </div>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} title="Ir a mis tareas" className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={className}>{inner}</div>
   );
 }

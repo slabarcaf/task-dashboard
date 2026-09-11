@@ -30,7 +30,7 @@ export function AppShell({
     <div className="min-h-screen bg-bg">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-7 sm:py-3">
-          <Wordmark hideWordOnMobile />
+          <Wordmark hideWordOnMobile href="/" />
 
           <nav className="flex rounded-field border border-line bg-sunken p-0.5" aria-label="Vista">
             <ViewTab active={view === "today"} onClick={() => onViewChange("today")}>

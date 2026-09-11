@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { BoardView } from "@/components/BoardView";
+import { CategoryFilter } from "@/components/CategoryFilter";
 import { CommandPalette, PaletteCommand } from "@/components/CommandPalette";
 import { EditTaskDialog } from "@/components/EditTaskDialog";
 import { OnboardingScreen } from "@/components/OnboardingScreen";
@@ -60,6 +61,7 @@ export default function HomePage() {
   // El tablero es la vista por defecto: da la forma de la semana de un vistazo,
   // que es lo que se quiere al abrir. "Hoy" es la lista para trabajar dentro.
   const [view, setView] = useState<"today" | "board">("board");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -159,6 +161,14 @@ export default function HomePage() {
     if (!isAuthLoading && currentUser) void loadUserPreferences();
   }, [currentUser, isAuthLoading, loadUserPreferences]);
 
+  // En el teléfono la lista gana: seis columnas que se deslizan de lado no son
+  // la forma de abrir la app con una mano. Se corrige después de montar y no en
+  // el estado inicial, porque el servidor no sabe el ancho de la pantalla y el
+  // HTML tiene que coincidir. Solo la primera vez: después manda quien elija.
+  useEffect(() => {
+    if (window.innerWidth < 640) setView("today");
+  }, []);
+
   // `loadTasks` clears the list itself when nobody is signed in.
   useEffect(() => {
     if (isAuthLoading) return;
@@ -195,6 +205,27 @@ export default function HomePage() {
     const fromTasks = tasks.map((task) => task.tipo).filter(Boolean);
     return normalizeTipoOptions([...userTipoOptions, ...fromTasks, "Otros"]);
   }, [tasks, userTipoOptions]);
+
+  const openTasks = useMemo(
+    () => tasks.filter((task) => normalizeStatus(task.statusFinalOutcome) !== "Done"),
+    [tasks]
+  );
+
+  // Se cuenta sobre lo abierto, no sobre todo: un "Finanzas 49" donde 48 están
+  // hechas promete una lista que no existe.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const task of openTasks) {
+      const key = task.tipo || "Otros";
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [openTasks]);
+
+  const visibleTasks = useMemo(
+    () => (categoryFilter ? tasks.filter((task) => task.tipo === categoryFilter) : tasks),
+    [categoryFilter, tasks]
+  );
 
   const handleQuickAdd = useCallback(
     async (input: { title: string; dueDate: string; tipo: string }) => {
@@ -474,11 +505,22 @@ export default function HomePage() {
         />
       </div>
 
+      {!isLoading && (
+        <CategoryFilter
+          categories={categories}
+          selected={categoryFilter}
+          counts={categoryCounts}
+          total={openTasks.length}
+          language={UI_LANGUAGE}
+          onSelect={setCategoryFilter}
+        />
+      )}
+
       {isLoading ? (
         <p className="py-12 text-center text-sm text-ink-3">Cargando tus tareas…</p>
       ) : view === "today" ? (
         <TodayView
-          tasks={tasks}
+          tasks={visibleTasks}
           today={today}
           weekEnd={weekEnd}
           language={UI_LANGUAGE}
@@ -487,7 +529,9 @@ export default function HomePage() {
         />
       ) : (
         <BoardView
-          tasks={tasks.filter((task) => normalizeStatus(task.statusFinalOutcome) !== "Done")}
+          tasks={visibleTasks.filter(
+            (task) => normalizeStatus(task.statusFinalOutcome) !== "Done"
+          )}
           today={today}
           tomorrow={tomorrow}
           weekEnd={weekEnd}

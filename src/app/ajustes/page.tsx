@@ -92,9 +92,12 @@ export default function SettingsPage() {
           <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Ajustes</h1>
           <p className="mt-1 text-sm text-ink-2">{user?.email}</p>
         </div>
+        {/* Grande y con color de marca a propósito: es la única salida de esta
+            pantalla, y un enlace gris de 13px pegado al borde es exactamente
+            donde alguien se pierde. */}
         <Link
           href="/"
-          className="rounded-field border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:border-line-2 hover:text-ink"
+          className="rounded-field bg-brand px-4 py-2.5 text-sm font-semibold text-brand-ink shadow-card transition-opacity hover:opacity-90"
         >
           ← Mis tareas
         </Link>
@@ -392,7 +395,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <main className="min-h-screen bg-bg px-5 py-9 sm:px-8">
       <div className="mx-auto w-full max-w-2xl">
         <header className="mb-8 flex items-center gap-3 border-b border-line pb-5">
-          <Wordmark />
+          <Wordmark href="/" />
           <span className="rounded-chip border border-line bg-sunken px-3 py-1 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
             ajustes
           </span>

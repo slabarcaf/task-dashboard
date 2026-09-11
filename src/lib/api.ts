@@ -222,3 +222,12 @@ export async function updatePreferences(patch: PreferencePatch): Promise<UserPre
   });
   return parseJsonOrThrow<UserPreferences>(response);
 }
+
+export async function createAdminUser(email: string, name: string): Promise<void> {
+  const response = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name })
+  });
+  await parseJsonOrThrow<{ ok: boolean }>(response);
+}

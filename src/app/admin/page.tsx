@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Wordmark } from "@/components/SignInScreen";
 import {
   AdminUserRow,
+  createAdminUser,
   deleteAdminUser,
   getCurrentUser,
   listAdminUsers,
@@ -27,6 +28,10 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [confirming, setConfirming] = useState<{ id: number; typed: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -131,9 +136,12 @@ export default function AdminPage() {
             Quién existe, hasta dónde llegó y qué tiene dentro.
           </p>
         </div>
+        {/* Grande y con color de marca a propósito: es la única salida de esta
+            pantalla, y un enlace gris de 13px pegado al borde es exactamente
+            donde alguien se pierde. */}
         <Link
           href="/"
-          className="rounded-field border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:border-line-2 hover:text-ink"
+          className="rounded-field bg-brand px-4 py-2.5 text-sm font-semibold text-brand-ink shadow-card transition-opacity hover:opacity-90"
         >
           ← Mis tareas
         </Link>
@@ -152,101 +160,196 @@ export default function AdminPage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-3">
+      {/* ── Agregar cuenta ────────────────────────────────────────────────
+          Esto NO manda ningún correo: el dashboard no envía mail. Lo que hace
+          es crear la fila, para que cuando esa persona entre con Google se
+          enganche a ESTA cuenta en vez de crear una segunda. Pasarle el enlace
+          sigue siendo un paso humano, y el texto lo dice para que nadie se
+          quede esperando una invitación que no existe. */}
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setAdding(true);
+          setError(null);
+          try {
+            await createAdminUser(newEmail, newName);
+            setError(`Cuenta creada para ${newEmail.trim().toLowerCase()}. Pásale la dirección de Sydney y que entre con ese Google.`);
+            setNewEmail("");
+            setNewName("");
+            await load();
+          } catch (addError) {
+            setError(addError instanceof Error ? addError.message : "No se pudo crear.");
+          } finally {
+            setAdding(false);
+          }
+        }}
+        className="mb-4 rounded-panel border border-line bg-surface p-4 shadow-card"
+      >
+        <h2 className="font-display text-[15px] font-semibold text-ink">Agregar una cuenta</h2>
+        <p className="mb-3 mt-0.5 text-[12.5px] text-ink-2">
+          No manda ningún correo. Crea la cuenta para que, al entrar con ese Google, caiga aquí en
+          vez de crear una nueva.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="email"
+            required
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+            placeholder="correo@ejemplo.com"
+            className="min-w-0 flex-[2] rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
+          />
+          <input
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="Nombre (opcional)"
+            className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
+          />
+          <button
+            type="submit"
+            disabled={adding || !newEmail.trim()}
+            className="rounded-field bg-brand px-4 py-2 text-sm font-semibold text-brand-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {adding ? "Creando…" : "Crear"}
+          </button>
+        </div>
+      </form>
+
+      {/* Una fila por persona. Con diez cuentas, diez tarjetas grandes abiertas
+          a la vez no son un panel: son un scroll. El detalle y las acciones
+          aparecen cuando se piden. */}
+      <div className="overflow-hidden rounded-panel border border-line bg-surface shadow-card">
+        <div className="hidden items-center gap-3 border-b border-line px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3 sm:flex">
+          <span className="min-w-0 flex-1">Persona</span>
+          <span className="w-14 text-right">Tareas</span>
+          <span className="w-20 text-right">Pendientes</span>
+          <span className="w-16 text-right">Vencidas</span>
+          <span className="w-24 text-right">Último acceso</span>
+          <span className="w-24 text-right">Última tarea</span>
+          <span className="w-5" />
+        </div>
+
         {users.map((row) => {
           const isViewer = row.id === viewer?.id;
           const busy = busyId === row.id;
+          const open = expandedId === row.id;
           const isConfirming = confirming?.id === row.id;
 
           return (
-            <article
-              key={row.id}
-              className={cn(
-                "rounded-panel border border-line bg-surface p-4 shadow-card transition-opacity",
-                busy && "pointer-events-none opacity-60"
-              )}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="truncate font-display text-base font-semibold text-ink">
-                    {row.name || row.email}
+            <div key={row.id} className={cn("border-b border-line last:border-b-0", busy && "opacity-60")}>
+              <button
+                type="button"
+                onClick={() => setExpandedId(open ? null : row.id)}
+                aria-expanded={open}
+                className={cn(
+                  "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-raised",
+                  open && "bg-raised"
+                )}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-[14px] font-medium text-ink">
+                      {row.name || row.email}
+                    </span>
                     {isViewer && (
-                      <span className="ml-2 rounded-chip border border-brand/30 bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand">
+                      <span className="flex-none rounded-chip border border-brand/30 bg-brand-soft px-1.5 text-[10.5px] font-semibold text-brand">
                         tú
                       </span>
                     )}
-                  </h2>
-                  <p className="truncate text-[13px] text-ink-3">{row.email}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Flag on={row.onboardingCompleted} onLabel="Onboarding hecho" offLabel="Sin onboarding" />
-                  <Flag
-                    on={row.telegramLinked}
-                    onLabel={`Telegram ···${row.telegramChatIdTail}`}
-                    offLabel="Sin Telegram"
-                  />
-                </div>
-              </div>
+                    {!row.onboardingCompleted && (
+                      <span className="flex-none rounded-chip border border-amber/30 bg-amber-soft px-1.5 text-[10.5px] font-semibold text-amber-ink">
+                        sin onboarding
+                      </span>
+                    )}
+                    {!row.telegramLinked && (
+                      <span className="flex-none rounded-chip border border-line bg-sunken px-1.5 text-[10.5px] font-semibold text-ink-3">
+                        sin Telegram
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-[12px] text-ink-3">{row.email}</span>
+                </span>
 
-              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
-                <Field label="Tareas" value={row.taskCount} />
-                <Field label="Pendientes" value={row.pendingCount} />
-                <Field label="Vencidas" value={row.overdueCount} tone={row.overdueCount > 0 ? "late" : undefined} />
-                <Field label="Prioridad" value={row.priorityCount} />
-                <Field label="Categorías" value={row.categoryCount} />
-                <Field label="Creada" value={shortDate(row.createdAt)} />
-                <Field label="Último acceso" value={shortDate(row.lastSignInAt) || "nunca"} />
-                <Field label="Última tarea" value={shortDate(row.lastTaskActivityAt) || "—"} />
-              </dl>
+                <Cell>{row.taskCount}</Cell>
+                <Cell width="w-20">{row.pendingCount}</Cell>
+                <Cell width="w-16" tone={row.overdueCount > 0 ? "late" : undefined}>
+                  {row.overdueCount}
+                </Cell>
+                <Cell width="w-24">{shortDate(row.lastSignInAt) || "nunca"}</Cell>
+                <Cell width="w-24">{shortDate(row.lastTaskActivityAt) || "—"}</Cell>
+                <span aria-hidden className="w-5 flex-none text-center text-ink-3">
+                  {open ? "▾" : "▸"}
+                </span>
+              </button>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                <RowAction onClick={() => void act(row.id, "reset_onboarding")} disabled={!row.onboardingCompleted}>
-                  Repetir onboarding
-                </RowAction>
-                <RowAction onClick={() => void act(row.id, "unlink_telegram")} disabled={!row.telegramLinked}>
-                  Desconectar Telegram
-                </RowAction>
-                {!isViewer && !row.isAdminAccount && (
-                  <RowAction
-                    tone="late"
-                    onClick={() => setConfirming(isConfirming ? null : { id: row.id, typed: "" })}
-                  >
-                    {isConfirming ? "Cancelar" : "Eliminar cuenta"}
-                  </RowAction>
-                )}
-              </div>
-
-              {isConfirming && (
-                <div className="mt-3 rounded-card border border-late/30 bg-late-soft p-3">
-                  <p className="text-[13px] text-ink">
-                    Esto borra la cuenta y sus <b>{row.taskCount} tareas</b>. No hay forma de
-                    deshacerlo. Escribe <b className="font-mono">{row.email}</b> para confirmar.
-                  </p>
-                  <div className="mt-2.5 flex flex-wrap gap-2">
-                    <input
-                      autoFocus
-                      value={confirming.typed}
-                      onChange={(event) =>
-                        setConfirming({ id: row.id, typed: event.target.value })
-                      }
-                      placeholder={row.email}
-                      className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-1.5 text-sm text-ink outline-none focus:border-late"
+              {open && (
+                <div className="border-t border-line bg-bg px-4 py-3">
+                  <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
+                    <Field label="Onboarding" value={row.onboardingCompleted ? "completado" : "pendiente"} />
+                    <Field
+                      label="Telegram"
+                      value={row.telegramLinked ? `···${row.telegramChatIdTail}` : "sin conectar"}
                     />
-                    <button
-                      type="button"
-                      disabled={confirming.typed.trim().toLowerCase() !== row.email.toLowerCase()}
-                      onClick={() => void remove(row, confirming.typed)}
-                      className="rounded-field bg-late px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    <Field label="Categorías" value={row.categoryCount} />
+                    <Field label="Prioridad" value={row.priorityCount} />
+                    <Field label="Creada" value={shortDate(row.createdAt)} />
+                  </dl>
+
+                  <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                    <RowAction
+                      onClick={() => void act(row.id, "reset_onboarding")}
+                      disabled={!row.onboardingCompleted}
                     >
-                      Eliminar definitivamente
-                    </button>
+                      Repetir onboarding
+                    </RowAction>
+                    <RowAction
+                      onClick={() => void act(row.id, "unlink_telegram")}
+                      disabled={!row.telegramLinked}
+                    >
+                      Desconectar Telegram
+                    </RowAction>
+                    {!isViewer && !row.isAdminAccount && (
+                      <RowAction
+                        tone="late"
+                        onClick={() => setConfirming(isConfirming ? null : { id: row.id, typed: "" })}
+                      >
+                        {isConfirming ? "Cancelar" : "Eliminar cuenta"}
+                      </RowAction>
+                    )}
                   </div>
+
+                  {isConfirming && (
+                    <div className="mt-3 rounded-card border border-late/30 bg-late-soft p-3">
+                      <p className="text-[13px] text-ink">
+                        Esto borra la cuenta y sus <b>{row.taskCount} tareas</b>. No hay forma de
+                        deshacerlo. Escribe <b className="font-mono">{row.email}</b> para confirmar.
+                      </p>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <input
+                          autoFocus
+                          value={confirming.typed}
+                          onChange={(event) => setConfirming({ id: row.id, typed: event.target.value })}
+                          placeholder={row.email}
+                          className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-1.5 text-sm text-ink outline-none focus:border-late"
+                        />
+                        <button
+                          type="button"
+                          disabled={confirming.typed.trim().toLowerCase() !== row.email.toLowerCase()}
+                          onClick={() => void remove(row, confirming.typed)}
+                          className="rounded-field bg-late px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Eliminar definitivamente
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </article>
+            </div>
           );
         })}
       </div>
+
     </Shell>
   );
 }
@@ -256,7 +359,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <main className="min-h-screen bg-bg px-5 py-9 sm:px-8">
       <div className="mx-auto w-full max-w-4xl">
         <header className="mb-8 flex items-center gap-3 border-b border-line pb-5">
-          <Wordmark />
+          <Wordmark href="/" />
           <span className="rounded-chip border border-line bg-sunken px-3 py-1 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
             admin
           </span>
@@ -277,6 +380,29 @@ function Stat({ label, value, hint }: { label: string; value: number | string; h
   );
 }
 
+/** Una celda numérica de la fila. Se esconde en el teléfono, donde no cabe. */
+function Cell({
+  children,
+  width = "w-14",
+  tone
+}: {
+  children: React.ReactNode;
+  width?: string;
+  tone?: "late";
+}) {
+  return (
+    <span
+      className={cn(
+        "num hidden flex-none text-right text-[13px] sm:block",
+        width,
+        tone === "late" ? "font-semibold text-late" : "text-ink-2"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 function Field({
   label,
   value,
@@ -291,19 +417,6 @@ function Field({
       <dt className="text-[11px] uppercase tracking-wide text-ink-3">{label}</dt>
       <dd className={cn("num font-semibold", tone === "late" ? "text-late" : "text-ink")}>{value}</dd>
     </div>
-  );
-}
-
-function Flag({ on, onLabel, offLabel }: { on: boolean; onLabel: string; offLabel: string }) {
-  return (
-    <span
-      className={cn(
-        "rounded-chip border px-2.5 py-0.5 text-[11.5px] font-semibold",
-        on ? "border-ok/30 bg-ok-soft text-ok" : "border-line bg-sunken text-ink-3"
-      )}
-    >
-      {on ? onLabel : offLabel}
-    </span>
   );
 }
 

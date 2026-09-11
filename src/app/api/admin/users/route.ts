@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromCookies } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
-import { listAdminUserOverview } from "@/lib/server/db";
+import { createUser, findUserByEmail, listAdminUserOverview } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -25,4 +25,37 @@ export async function GET() {
     isAdminAccount: isAdminUser(row)
   }));
   return NextResponse.json({ ok: true, users, viewerId: user.id });
+}
+
+/**
+ * Pre-creates an account by email.
+ *
+ * There is no mail being sent here, and the response says so rather than letting
+ * the screen imply an invitation went out. What this does is real but narrower:
+ * the row exists, so when that person signs in with Google, `upsertGoogleUser`
+ * matches them by email and attaches their Google id to *this* account instead
+ * of making a second one. Handing them the link is still a human step.
+ */
+export async function POST(request: NextRequest) {
+  const user = await getCurrentUserFromCookies();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdminUser(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = (await request.json().catch(() => ({}))) as { email?: string; name?: string };
+  const email = String(body.email || "").trim().toLowerCase();
+  const name = String(body.name || "").trim();
+
+  // Deliberately loose: the authority on whether an address works is Google, at
+  // sign-in. This only catches a typo that could never be an address at all.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return NextResponse.json({ error: "Ese correo no parece válido." }, { status: 400 });
+  }
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    return NextResponse.json({ error: "Ya existe una cuenta con ese correo." }, { status: 409 });
+  }
+
+  const created = await createUser({ email, name });
+  return NextResponse.json({ ok: true, user: { id: created.id, email: created.email } });
 }
