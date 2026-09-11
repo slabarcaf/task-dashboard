@@ -1,13 +1,10 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Wordmark } from "@/components/SignInScreen";
+import { TelegramConnect } from "@/components/TelegramConnect";
 import {
-  TelegramLink,
-  createTelegramLink,
   disconnectTelegram,
   getCurrentUser,
   getUserPreferences,
@@ -36,7 +33,6 @@ export default function SettingsPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "signed_out">("loading");
-  const [link, setLink] = useState<TelegramLink | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
@@ -146,7 +142,6 @@ export default function SettingsPage() {
                 try {
                   await disconnectTelegram();
                   await load();
-                  setLink(null);
                   setNote("Telegram desconectado");
                 } catch (e) {
                   setError(e instanceof Error ? e.message : "No se pudo desconectar.");
@@ -159,67 +154,14 @@ export default function SettingsPage() {
               Desconectar
             </button>
           </div>
-        ) : link ? (
-          <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
-            <img
-              src={link.qrDataUrl}
-              alt="Código QR para abrir el chat de Sydney en Telegram"
-              // 192px of drawn QR for a ~45-character URL is about five screen pixels per
-              // module, which scans comfortably; at 160px it was close to the edge. The
-              // white plate is explicit so dark mode cannot invert it into an unreadable one.
-              className="h-48 w-48 flex-none rounded-card border border-line bg-white p-2"
-            />
-            <div className="min-w-0">
-              <p className="text-sm text-ink">
-                <b>Escanéalo con tu teléfono.</b> Abre el chat de Sydney y la conecta con esta
-                cuenta en un paso.
-              </p>
-              <a
-                href={link.deepLink}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-block rounded-field bg-brand px-4 py-2 text-sm font-semibold text-brand-ink"
-              >
-                O ábrelo aquí mismo
-              </a>
-              <p className="mt-4 text-[12.5px] leading-relaxed text-ink-3">
-                ¿No puedes escanear? Escríbele a{" "}
-                <b className="text-ink-2">@{link.botUsername}</b> en Telegram:
-              </p>
-              <code className="num mt-1.5 inline-block rounded-field border border-line bg-sunken px-3 py-1.5 text-[13px] font-semibold text-ink">
-                /link {link.code}
-              </code>
-              <p className="mt-3 text-[12.5px] text-ink-3">
-                El código sirve por 24 horas. Si no tienes Telegram, el enlace te lleva a
-                instalarlo y sigue funcionando después.
-              </p>
-            </div>
-          </div>
         ) : (
-          <div>
+          <>
             <p className="mb-4 max-w-prose text-sm text-ink-2">
               Todavía no has conectado Telegram. Mientras no lo hagas no recibirás los briefs de la
               mañana y la noche, y no puedes escribirle a Sydney.
             </p>
-            <button
-              type="button"
-              disabled={busy === "Telegram"}
-              onClick={async () => {
-                setBusy("Telegram");
-                setError(null);
-                try {
-                  setLink(await createTelegramLink());
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "No se pudo generar el código.");
-                } finally {
-                  setBusy(null);
-                }
-              }}
-              className="rounded-field bg-brand px-4 py-2 text-sm font-semibold text-brand-ink disabled:opacity-50"
-            >
-              {busy === "Telegram" ? "Generando…" : "Conectar Telegram"}
-            </button>
-          </div>
+            <TelegramConnect connected={false} onConnected={() => void load()} />
+          </>
         )}
       </Section>
 

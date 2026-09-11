@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TaskCard } from "@/components/TaskCard";
+import { TelegramConnect } from "@/components/TelegramConnect";
 import { Wordmark } from "@/components/SignInScreen";
 import { AppLanguage, CANONICAL_CATEGORIES, categoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/cn";
@@ -108,6 +109,10 @@ export function OnboardingScreen({
   const [previewPriority, setPreviewPriority] = useState(false);
   const [previewDone, setPreviewDone] = useState(false);
   const [dueOverride, setDueOverride] = useState<string | null>(null);
+
+  // El componente de Telegram avisa en cuanto detecta la vinculación, así que
+  // esta pantalla puede cambiar de tono sin recargar ni pedirle nada a nadie.
+  const [telegramConnected, setTelegramConnected] = useState(false);
 
   const [debtName, setDebtName] = useState("");
   const [debtAmount, setDebtAmount] = useState("");
@@ -638,9 +643,15 @@ export function OnboardingScreen({
                   , y le escribes desde el teléfono —o le mandas un audio— sin abrir nada.
                 </p>
                 <p className="mt-2.5 text-[14px] leading-relaxed text-ink-2">
-                  Sin eso, esto es una lista más que hay que acordarse de visitar.{" "}
-                  <b className="text-ink">Se hace en Ajustes, en un minuto.</b>
+                  Sin eso, esto es una lista más que hay que acordarse de visitar.
                 </p>
+
+                <div className="mt-5 border-t border-brand/20 pt-5">
+                  <TelegramConnect
+                    connected={telegramConnected}
+                    onConnected={() => setTelegramConnected(true)}
+                  />
+                </div>
               </div>
 
               <ul className="mt-6 space-y-3">
@@ -667,6 +678,28 @@ export function OnboardingScreen({
                   wantsEvening
                 })}
               </div>
+
+              {/* La salida, grande y sin culpa. Conectar Telegram es lo que hace
+                  que el producto sirva, pero cobrárselo aquí —con un botón chico
+                  y gris al lado de uno grande y azul— convierte un "ahora no" en
+                  una pantalla de la que cuesta salir. Se entra igual. */}
+              <button
+                type="button"
+                onClick={finish}
+                disabled={isSaving}
+                className={cn(
+                  "mt-6 w-full rounded-field px-5 py-3.5 text-[15px] font-semibold transition-colors disabled:opacity-40",
+                  telegramConnected
+                    ? "bg-brand text-brand-ink"
+                    : "border border-line-2 bg-surface text-ink hover:border-brand/50"
+                )}
+              >
+                {isSaving
+                  ? "Guardando…"
+                  : telegramConnected
+                    ? "Listo — entrar"
+                    : "No te preocupes, lo hago más tarde en Ajustes"}
+              </button>
             </>
           )}
 
@@ -690,15 +723,11 @@ export function OnboardingScreen({
               {step + 1} de {STEPS.length}
             </span>
 
+            {/* En la última pantalla el botón de entrar vive en el cuerpo, junto
+                a la decisión de Telegram. Repetirlo aquí serían dos controles
+                para lo mismo, y el de abajo es el que dice lo que pasa. */}
             {isLast ? (
-              <button
-                type="button"
-                onClick={finish}
-                disabled={isSaving}
-                className="rounded-field bg-brand px-6 py-2.5 text-[14.5px] font-semibold text-brand-ink disabled:opacity-40"
-              >
-                {isSaving ? "Guardando…" : "Entrar"}
-              </button>
+              <span aria-hidden />
             ) : (
               <button
                 type="button"
