@@ -12,6 +12,13 @@ detrás de un condicional o de un componente que monta un tick más tarde.
 
 La referencia visual es `design-mockup.html`, en el repo `melissa-bot`.
 
+## Antes de tocar nada de acceso
+
+**Lee [`SECURITY.md`](SECURITY.md).** La web es **solo por invitación**: firmar
+con Google prueba identidad, no permiso, y lo único que crea filas es
+`POST /api/admin/users`. Si alguien "no puede entrar", mira si tiene fila antes
+de suponer que el login está roto.
+
 ## El resto del sistema
 
 Este repo es la mitad web. La otra mitad — el bot, el onboarding, los briefs, los
