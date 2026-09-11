@@ -63,6 +63,22 @@ export async function POST(request: NextRequest) {
     // El detalle va al log, no al navegador: el mensaje de una excepción de `pg`
     // trae el SQL, los nombres de las columnas y a veces el host de la conexión.
     console.warn("[auth] falló el ingreso con Google:", error);
+
+    // Una excepción: el correo sin verificar merece decirse. Es el único fallo
+    // que deja fuera a alguien cuya cuenta existe y cuya contraseña es correcta,
+    // y sin nombrarlo el diagnóstico son horas. Google marca así algunas cuentas
+    // de Workspace con el dominio a medio verificar.
+    if (error instanceof Error && error.message === "Google email is not verified") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "email_unverified",
+          detail: "Google dice que ese correo no está verificado. Escríbele a quien administra Sydney."
+        },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({ ok: false, error: "No se pudo entrar." }, { status: 401 });
   }
 }
