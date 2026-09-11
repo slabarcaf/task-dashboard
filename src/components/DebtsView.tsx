@@ -70,13 +70,19 @@ export function DebtsView({
               <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                 {currency}
               </div>
+              {/* Solo el lado que tiene algo: un "Te deben 0 CLP" ocupa el
+                  mismo espacio que un dato y no dice nada. */}
               <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
-                <span className="num text-sm text-ink-2">
-                  Te deben <b className="text-ok">{money(owed, currency)}</b>
-                </span>
-                <span className="num text-sm text-ink-2">
-                  Debes <b className="text-late">{money(owing, currency)}</b>
-                </span>
+                {owed > 0 && (
+                  <span className="num text-sm text-ink-2">
+                    Te deben <b className="text-ok">{money(owed, currency)}</b>
+                  </span>
+                )}
+                {owing > 0 && (
+                  <span className="num text-sm text-ink-2">
+                    Debes <b className="text-late">{money(owing, currency)}</b>
+                  </span>
+                )}
               </div>
             </div>
           ))}
