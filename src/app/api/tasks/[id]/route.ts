@@ -100,6 +100,20 @@ export async function PATCH(
     };
 
     const patch = body.patch || {};
+
+    // Un cuerpo sin `patch` reconocible se rechaza en vez de responder ok
+    // habiendo cambiado nada. Esta API ya tuvo una vez el bug de afirmar
+    // escrituras que nunca ocurrieron, y un 200 sobre un no-op es justo esa
+    // forma: quien llama se lo cree y nadie se entera hasta que falta el dato.
+    // Ningún cliente legítimo manda vacío — tasks-mcp y la web lo comprueban
+    // antes de enviar.
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json(
+        { ok: false, error: "Nada que actualizar: falta el objeto 'patch'." },
+        { status: 400 }
+      );
+    }
+
     const existing = await getDbTaskByIdForUser(id, user.id);
     if (!existing) {
       return NextResponse.json({ ok: false, error: "Task not found" }, { status: 404 });
