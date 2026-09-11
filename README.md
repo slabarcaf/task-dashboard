@@ -5,7 +5,20 @@ assistant (`melissa-bot`), which authenticates with `OPENCLAW_API_SECRET`.
 
 ## Deploying
 
-Vercel builds every push to `main` (project `task-dashboard-c7q2`, account `slabarcaf`).
+Vercel builds every push to `main`. The project serves `task-dashboard-c7q2.vercel.app` and lives
+in the **Berkeley** Vercel account — *not* the personal one, even though the repo is
+`slabarcaf/task-dashboard` on personal GitHub.
+
+> ⚠️ **There is a second Vercel project that looks like this one.** The personal account holds an
+> unrelated old create-react-app, also named `task-dashboard`, still serving at
+> `task-dashboard.vercel.app`. On 2026-09-11 two API keys were added to it by mistake and three
+> redeploys later production still could not see them.
+>
+> **How to be sure you are in the right one:** its Deployments tab shows today's commits from
+> `slabarcaf/task-dashboard`. If it shows a React app or nothing recent, back out.
+>
+> The full account map — who owns Neon, Google Cloud, OpenAI, Resend — is in `melissa-bot/README.md`
+> under "Which account owns what", with a how-to-check for every row.
 
 > **Your git commit email must belong to your GitHub account, or the deployment is blocked.**
 > Vercel refuses to build a commit whose author it cannot match to a GitHub user, and reports it as
@@ -134,6 +147,8 @@ redesigning it hard to verify. Deleting it costs the app no behaviour.
 Two features are built and degrade honestly when their key is missing — the UI
 says what is absent rather than reporting a failure or, worse, a false success.
 
+These go in the **Berkeley** Vercel account's project (see the warning above).
+
 | Variable | Turns on | Without it |
 |---|---|---|
 | `OPENAI_API_KEY` | Voice notes on the web (Whisper, the same one the bot uses) | The mic returns 503 and the toast says the feature is not configured |
@@ -141,6 +156,10 @@ says what is absent rather than reporting a failure or, worse, a false success.
 | `INVITE_FROM` | The sender address | Falls back to `onboarding@resend.dev`, which Resend allows without a verified domain |
 | `NEXT_PUBLIC_TELEGRAM_BOT` | The bot handle used in link/QR/invite URLs | Falls back to `Melizion_bot` |
 | `ADMIN_EMAILS` | Who sees `/admin`, comma-separated | Falls back to `DEFAULT_OWNER_EMAIL` |
+
+**A variable does nothing until a new build.** After saving one, redeploy. And `/admin` shows an
+**Integraciones** block that says, in green or red, whether each key actually reached the running
+build — which is faster than guessing and is what finally located the wrong-project mistake.
 
 ## Voice notes
 
