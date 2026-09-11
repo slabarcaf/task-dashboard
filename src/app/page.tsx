@@ -8,9 +8,10 @@ import { CategoryFilter } from "@/components/CategoryFilter";
 import { DebtsView } from "@/components/DebtsView";
 import { CommandPalette, PaletteCommand } from "@/components/CommandPalette";
 import { EditTaskDialog } from "@/components/EditTaskDialog";
-import { OnboardingScreen } from "@/components/OnboardingScreen";
+import { OnboardingAnswers, OnboardingScreen } from "@/components/OnboardingScreen";
 import { QuickCapture } from "@/components/QuickCapture";
 import { SignInScreen } from "@/components/SignInScreen";
+import { TelegramNudge } from "@/components/TelegramNudge";
 import { TodayView } from "@/components/TodayView";
 import { Toast } from "@/components/ui/Toast";
 import { useTasks } from "@/hooks/useTasks";
@@ -27,8 +28,8 @@ import {
   getCurrentUser,
   getUserPreferences,
   logoutUser,
-  saveUserPreferences,
-  signInWithGoogle
+  signInWithGoogle,
+  updatePreferences
 } from "@/lib/api";
 import { AppLanguage } from "@/lib/categories";
 import { addDaysToIsoDate, endOfWeekIsoDate, todayIsoDate } from "@/lib/date";
@@ -184,16 +185,44 @@ export default function HomePage() {
     void loadTasks();
   }, [isAuthLoading, loadTasks]);
 
+  /**
+   * Guarda todo el onboarding en una sola pasada.
+   *
+   * La tarea de ejemplo va primero a propósito: `updatePreferences` es lo que
+   * marca el onboarding como terminado, y si esa pantalla se cerrara antes de
+   * crear la tarea, alguien podría quedarse sin la tarea que acaba de escribir y
+   * sin forma de volver a esa pantalla.
+   */
   const completeOnboarding = useCallback(
-    async (categories: string[]) => {
-      if (categories.length === 0) {
+    async (answers: OnboardingAnswers) => {
+      if (answers.categories.length === 0) {
         setError("Elige al menos una categoría.");
         return;
       }
       setIsSavingOnboarding(true);
       setError(null);
       try {
-        const preferences = await saveUserPreferences(categories);
+        if (answers.firstTask) {
+          const payload: AddTaskPayload = {
+            toDo: answers.firstTask.title,
+            statusFinalOutcome: "To-do",
+            tipo: answers.firstTask.tipo,
+            nextStep: "",
+            dueDateNextStep: answers.firstTask.dueDate,
+            statusNextStep: "",
+            recurrenceInterval: null,
+            recurrenceUnit: null
+          };
+          const created = await addTask(payload);
+          setTasks((current) => [taskFromPayload(created.rowId, payload), ...current]);
+        }
+
+        const preferences = await updatePreferences({
+          tipoOptions: answers.categories,
+          timezone: answers.timezone,
+          briefMorning: answers.briefMorning,
+          briefEvening: answers.briefEvening
+        });
         setUserTipoOptions(preferences.tipoOptions);
         setNeedsOnboarding(false);
         pushToast("Listo");
@@ -205,7 +234,7 @@ export default function HomePage() {
         setIsSavingOnboarding(false);
       }
     },
-    [pushToast]
+    [pushToast, setTasks]
   );
 
   /* ── task actions ────────────────────────────────────────────────────── */
@@ -573,7 +602,7 @@ export default function HomePage() {
         initialSelection={userTipoOptions}
         isSaving={isSavingOnboarding}
         error={error}
-        onComplete={(selected) => void completeOnboarding(selected)}
+        onComplete={(answers) => void completeOnboarding(answers)}
       />
     );
   }
@@ -674,6 +703,8 @@ export default function HomePage() {
         commands={commands}
         onPickTask={(task) => setEditingRowId(task.rowId)}
       />
+
+      <TelegramNudge connected={Boolean(currentUser.telegramLinked)} />
 
       <Toast
         visible={toast.visible}

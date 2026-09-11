@@ -1077,6 +1077,8 @@ export type DbDebt = {
   status: "Por pagar" | "Pagado";
   createdAt: string;
   statusChangedAt: string | null;
+  /** Presente solo si lo almacenado no era un valor reconocible. Ver toDebt. */
+  suspect?: { direction: string; status: string; amount: string };
 };
 
 type DebtRow = {
@@ -1091,18 +1093,38 @@ type DebtRow = {
   status_changed_at: Date | null;
 };
 
-/** NUMERIC comes back from pg as a string; parsing it here keeps that off the UI. */
+/**
+ * NUMERIC comes back from pg as a string; parsing it here keeps that off the UI.
+ *
+ * Direction and status are coerced to known values so nothing downstream has to
+ * handle an arbitrary string — but the coercion is **reported** in `suspect`
+ * rather than done silently.
+ *
+ * That flag exists because of a real hole: the nightly check looked for debts
+ * with an unrecognised direction or status, and could never find one, because
+ * this function had already turned "Quizás" into "Me deben" on the way out. A
+ * check that reads through a layer which repairs the very thing it is checking
+ * always passes. Measured, not guessed: a row written straight into Postgres
+ * with direction "Quizás" came back as "Me deben" and the check said OK.
+ */
 function toDebt(row: DebtRow): DbDebt {
+  const amount = Number(row.amount);
+  const knownDirection = row.direction === "Debo yo" || row.direction === "Me deben";
+  const knownStatus = row.status === "Por pagar" || row.status === "Pagado";
+  const suspect = !knownDirection || !knownStatus || !Number.isFinite(amount) || amount <= 0;
+
   return {
     id: Number(row.id),
     name: row.name,
-    amount: Number(row.amount),
+    amount,
     currency: row.currency,
     direction: row.direction === "Debo yo" ? "Debo yo" : "Me deben",
     reason: row.reason || "",
     status: row.status === "Pagado" ? "Pagado" : "Por pagar",
     createdAt: new Date(row.created_at).toISOString(),
-    statusChangedAt: row.status_changed_at ? new Date(row.status_changed_at).toISOString() : null
+    statusChangedAt: row.status_changed_at ? new Date(row.status_changed_at).toISOString() : null,
+    // Solo viaja cuando hay algo que reportar, para no ensuciar la respuesta normal.
+    ...(suspect ? { suspect: { direction: row.direction, status: row.status, amount: row.amount } } : {})
   };
 }
 

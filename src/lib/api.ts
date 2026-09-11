@@ -223,13 +223,18 @@ export async function updatePreferences(patch: PreferencePatch): Promise<UserPre
   return parseJsonOrThrow<UserPreferences>(response);
 }
 
-export async function createAdminUser(email: string, name: string): Promise<void> {
+export type InviteOutcome =
+  | { sent: true }
+  | { sent: false; reason: "not_configured" | "failed"; appUrl: string };
+
+export async function createAdminUser(email: string, name: string): Promise<InviteOutcome> {
   const response = await fetch("/api/admin/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, name })
   });
-  await parseJsonOrThrow<{ ok: boolean }>(response);
+  const data = await parseJsonOrThrow<{ ok: boolean; invite: InviteOutcome }>(response);
+  return data.invite;
 }
 
 /* ─── Deudas ──────────────────────────────────────────────────────────────── */
@@ -244,6 +249,8 @@ export type Debt = {
   status: "Por pagar" | "Pagado";
   createdAt: string;
   statusChangedAt: string | null;
+  /** Solo si lo guardado no era reconocible; lo usa el chequeo nocturno. */
+  suspect?: { direction: string; status: string; amount: string };
 };
 
 export async function listDebts(): Promise<Debt[]> {

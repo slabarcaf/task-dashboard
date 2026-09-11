@@ -32,6 +32,9 @@ export default function AdminPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [invite, setInvite] = useState<
+    { to: string; appUrl?: string; reason?: "not_configured" | "failed" } | null
+  >(null);
 
   const load = useCallback(async () => {
     try {
@@ -172,8 +175,9 @@ export default function AdminPage() {
           setAdding(true);
           setError(null);
           try {
-            await createAdminUser(newEmail, newName);
-            setError(`Cuenta creada para ${newEmail.trim().toLowerCase()}. Pásale la dirección de Sydney y que entre con ese Google.`);
+            const invite = await createAdminUser(newEmail, newName);
+            const to = newEmail.trim().toLowerCase();
+            setInvite(invite.sent ? { to } : { to, appUrl: invite.appUrl, reason: invite.reason });
             setNewEmail("");
             setNewName("");
             await load();
@@ -213,6 +217,42 @@ export default function AdminPage() {
             {adding ? "Creando…" : "Crear"}
           </button>
         </div>
+
+        {invite && (
+          <div className="mt-3 rounded-card border border-line bg-raised p-3 text-[13px]">
+            {invite.appUrl ? (
+              <>
+                <p className="text-ink">
+                  Cuenta creada para <b>{invite.to}</b>, pero{" "}
+                  <b>
+                    {invite.reason === "not_configured"
+                      ? "no se envió correo"
+                      : "el correo no se pudo enviar"}
+                  </b>
+                  . Mándale esto tú:
+                </p>
+                <textarea
+                  readOnly
+                  rows={3}
+                  onFocus={(event) => event.currentTarget.select()}
+                  value={`Te invité a Sydney, una lista de tareas a la que le puedes escribir como a una persona. Entra con ${invite.to}: ${invite.appUrl}`}
+                  className="mt-2 w-full resize-none rounded-field border border-line bg-surface px-3 py-2 text-[12.5px] text-ink-2 outline-none"
+                />
+                {invite.reason === "not_configured" && (
+                  <p className="mt-2 text-[12px] text-ink-3">
+                    Para que salgan solas: crear una API key en resend.com y ponerla en Vercel como{" "}
+                    <code className="font-mono">RESEND_API_KEY</code>.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-ink">
+                Invitación enviada a <b>{invite.to}</b>. Va a aparecer abajo con “nunca” en último
+                acceso hasta que entre.
+              </p>
+            )}
+          </div>
+        )}
       </form>
 
       {/* Una fila por persona. Con diez cuentas, diez tarjetas grandes abiertas
@@ -264,6 +304,13 @@ export default function AdminPage() {
                     {!row.telegramLinked && (
                       <span className="flex-none rounded-chip border border-line bg-sunken px-1.5 text-[10.5px] font-semibold text-ink-3">
                         sin Telegram
+                      </span>
+                    )}
+                    {/* El motivo real por el que una cuenta creada de antemano
+                        sirve: así se ve a quién nunca le llegó la invitación. */}
+                    {!row.lastSignInAt && row.taskCount === 0 && (
+                      <span className="flex-none rounded-chip border border-brand/30 bg-brand-soft px-1.5 text-[10.5px] font-semibold text-brand">
+                        invitado, no ha entrado
                       </span>
                     )}
                   </span>

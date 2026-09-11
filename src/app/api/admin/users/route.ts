@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromCookies } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
+import { sendInviteEmail } from "@/lib/server/mail";
 import { createUser, findUserByEmail, listAdminUserOverview } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +29,21 @@ export async function GET() {
 }
 
 /**
- * Pre-creates an account by email.
+ * Creates an account and invites the person to it.
  *
- * There is no mail being sent here, and the response says so rather than letting
- * the screen imply an invitation went out. What this does is real but narrower:
- * the row exists, so when that person signs in with Google, `upsertGoogleUser`
- * matches them by email and attaches their Google id to *this* account instead
- * of making a second one. Handing them the link is still a human step.
+ * ⚠️ Worth being straight about what the account itself buys, because it is
+ * less than it looks: **anyone with a Google account can already sign in and get
+ * one made automatically.** Pre-creating does not gate anything. What it does
+ * give is a name attached before they arrive, and — the part that actually
+ * earns its keep — a row in the admin table whose last sign-in reads "nunca",
+ * which is how you find out an invitation never landed.
+ *
+ * The mail is the real feature, and it only goes out when RESEND_API_KEY is set.
+ * When it is not, the response says so and the screen hands over a message to
+ * send by hand instead of pretending something was delivered.
+ *
+ * If this should ever become real access control — only invited addresses may
+ * sign in — that is a decision about the sign-in route, not about this one.
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUserFromCookies();
@@ -57,5 +66,23 @@ export async function POST(request: NextRequest) {
   }
 
   const created = await createUser({ email, name });
-  return NextResponse.json({ ok: true, user: { id: created.id, email: created.email } });
+
+  // La dirección real desde la que llegó esta petición, no una constante que se
+  // queda vieja el día que cambie el dominio.
+  const origin = request.nextUrl.origin;
+  const mail = await sendInviteEmail({
+    to: email,
+    appUrl: origin,
+    invitedBy: user.name || user.email
+  });
+
+  return NextResponse.json({
+    ok: true,
+    user: { id: created.id, email: created.email },
+    // La pantalla dice lo que pasó de verdad. Una invitación que el producto
+    // afirma haber mandado y no mandó es peor que no tener invitaciones.
+    invite: mail.sent
+      ? { sent: true as const }
+      : { sent: false as const, reason: mail.reason, appUrl: origin }
+  });
 }

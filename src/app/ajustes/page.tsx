@@ -13,6 +13,8 @@ import {
   getUserPreferences,
   updatePreferences
 } from "@/lib/api";
+import { categoryLabel } from "@/lib/categories";
+import { categoryHue } from "@/lib/categoryColor";
 import { cn } from "@/lib/cn";
 import { AuthUser, UserPreferences } from "@/lib/types";
 
@@ -37,6 +39,7 @@ export default function SettingsPage() {
   const [link, setLink] = useState<TelegramLink | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [newCategory, setNewCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -295,19 +298,76 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Categorías" hint="Con estas se agrupan tus tareas, aquí y en Telegram.">
-        <div className="flex flex-wrap gap-2">
-          {(prefs?.tipoOptions || []).map((option) => (
-            <span
-              key={option}
-              className="rounded-chip border border-line bg-sunken px-3 py-1 text-[12.5px] font-semibold text-ink-2"
-            >
-              {option}
-            </span>
-          ))}
+      <Section
+        title="Categorías"
+        hint="Con estas se agrupan tus tareas, aquí y en Telegram. También aparecen solas cuando creas una tarea con una categoría nueva."
+      >
+        <div className="mb-3 flex flex-wrap gap-2">
+          {(prefs?.tipoOptions || []).map((option) => {
+            const inUse = (prefs?.tipoOptions?.length || 0) <= 1;
+            return (
+              <span
+                key={option}
+                className="cat-chip group inline-flex items-center gap-1.5 rounded-chip border px-3 py-1 text-[12.5px] font-semibold"
+                style={{ "--cat-h": categoryHue(option) } as React.CSSProperties}
+              >
+                {categoryLabel(option, "es")}
+                <button
+                  type="button"
+                  aria-label={`Quitar ${option}`}
+                  title={inUse ? "Tiene que quedar al menos una" : `Quitar ${option}`}
+                  disabled={inUse || busy === "Categorías"}
+                  onClick={() =>
+                    void save(
+                      { tipoOptions: (prefs?.tipoOptions || []).filter((item) => item !== option) },
+                      "Categorías"
+                    )
+                  }
+                  className="opacity-50 transition-opacity hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-20"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
         </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = newCategory.trim();
+            if (!value) return;
+            const existing = prefs?.tipoOptions || [];
+            // Comparación sin distinguir mayúsculas: "finanzas" y "Finanzas" son
+            // la misma categoría, y dos filas con el mismo nombre parten las
+            // tareas en dos grupos que nadie pidió.
+            if (existing.some((item) => item.toLowerCase() === value.toLowerCase())) {
+              setNewCategory("");
+              return;
+            }
+            void save({ tipoOptions: [...existing, value] }, "Categorías");
+            setNewCategory("");
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={newCategory}
+            onChange={(event) => setNewCategory(event.target.value)}
+            placeholder="Agregar una categoría"
+            className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
+          />
+          <button
+            type="submit"
+            disabled={!newCategory.trim() || busy === "Categorías"}
+            className="rounded-field border border-line px-3 py-2 text-sm text-ink-2 hover:border-line-2 hover:text-ink disabled:opacity-40"
+          >
+            Agregar
+          </button>
+        </form>
+
         <p className="mt-3 text-[12.5px] text-ink-3">
-          Se agregan solas cuando creas una tarea con una categoría nueva, aquí o en Telegram.
+          Quitar una categoría de esta lista no borra las tareas que ya la tienen; solo deja de
+          ofrecerse al crear.
         </p>
       </Section>
     </Shell>
