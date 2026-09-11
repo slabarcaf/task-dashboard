@@ -20,6 +20,9 @@ const MIN_MS = 350;
 /**
  * Mantener pulsado para grabar, soltar para transcribir — como WhatsApp.
  *
+ * **Solo aparece en computador.** En el teléfono la nota de voz se le manda a
+ * Sydney por Telegram, que es la misma transcripción por un camino más robusto.
+ *
  * También funciona con un clic corto: pulsar y soltar rápido deja la grabación
  * **abierta** hasta el siguiente clic. Mantener el dedo apretado treinta
  * segundos es incómodo en un escritorio, y la alternativa no cuesta nada.
@@ -31,7 +34,9 @@ const MIN_MS = 350;
 export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProps) {
   const [state, setState] = useState<State>("idle");
   const [elapsed, setElapsed] = useState(0);
-  const [supported, setSupported] = useState(true);
+  // Empieza en false y se enciende tras comprobar: así el teléfono no ve
+  // aparecer y desaparecer un botón que no le corresponde.
+  const [supported, setSupported] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -41,13 +46,30 @@ export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProp
   const tickRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // getUserMedia no existe sin HTTPS (localhost aparte), y MediaRecorder falta
-    // en navegadores viejos. Mejor no mostrar un botón que no puede funcionar.
-    setSupported(
-      typeof window !== "undefined" &&
-        typeof window.MediaRecorder !== "undefined" &&
-        Boolean(navigator.mediaDevices?.getUserMedia)
-    );
+    if (typeof window === "undefined") return;
+
+    // Dos condiciones, por razones distintas.
+    //
+    // La técnica: getUserMedia no existe sin HTTPS (localhost aparte) y
+    // MediaRecorder falta en navegadores viejos. Un botón que no puede funcionar
+    // no debería estar.
+    const canRecord =
+      typeof window.MediaRecorder !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
+
+    // Y la de producto: **solo en computador**. En el teléfono ya está Telegram,
+    // que graba mejor, no depende de MediaRecorder en Safari — que en iOS graba
+    // en audio/mp4 y es el camino más frágil de los dos — y es donde la persona
+    // ya está hablándole a Sydney. Ofrecer aquí una versión peor de algo que
+    // tiene al lado no es ofrecer una opción, es repartir la misma función en
+    // dos sitios y hacer que ninguno sea el bueno.
+    const query = window.matchMedia("(min-width: 640px) and (pointer: fine)");
+    const apply = () => setSupported(canRecord && query.matches);
+    apply();
+
+    // Se escucha el cambio: una ventana que se agranda, o un iPad al que le
+    // enchufan un teclado con trackpad.
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
   }, []);
 
   const cleanup = useCallback(() => {

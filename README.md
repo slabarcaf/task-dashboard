@@ -219,6 +219,15 @@ Hold the mic in the capture bar to record, release to transcribe; a short tap
 latches recording open until the next tap, because holding a finger down for
 thirty seconds on a desktop is nobody's idea of a good time.
 
+**The mic only appears on a computer** — `(min-width: 640px) and (pointer: fine)`.
+On a phone the voice note goes to Sydney through Telegram: the same Whisper by a
+sturdier path, in the app the person is already talking to. Shipping a second,
+weaker version of something that sits right next to it is not offering a choice,
+it is splitting one feature across two places so that neither is the good one.
+iOS Safari records `audio/mp4` rather than `audio/webm`, which is the most
+fragile leg of the two and the one hardest to verify. Ajustes says where voice
+lives on a phone, so its absence reads as a decision rather than a gap.
+
 **The transcript lands in the text field, never straight into a task.** Whisper
 mishears, and a task created silently from a misheard phrase is worse than
 having no voice at all — you find out the day the reminder does not come.

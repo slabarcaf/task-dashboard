@@ -122,7 +122,7 @@ export default function SettingsPage() {
           happens. Everything below only matters once this is connected.      */}
       <Section
         title="Telegram"
-        hint="Aquí es donde Sydney vive. La web es para mirar y ordenar; hablar con ella es allá."
+        hint="Aquí es donde Sydney vive. La web es para mirar y ordenar; hablar con ella es allá — y desde el teléfono, las notas de voz también: el micrófono de la web solo aparece en el computador."
       >
         {connected ? (
           <div className="flex flex-wrap items-center gap-3">
