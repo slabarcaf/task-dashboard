@@ -231,3 +231,52 @@ export async function createAdminUser(email: string, name: string): Promise<void
   });
   await parseJsonOrThrow<{ ok: boolean }>(response);
 }
+
+/* ─── Deudas ──────────────────────────────────────────────────────────────── */
+
+export type Debt = {
+  id: number;
+  name: string;
+  amount: number;
+  currency: string;
+  direction: "Debo yo" | "Me deben";
+  reason: string;
+  status: "Por pagar" | "Pagado";
+  createdAt: string;
+  statusChangedAt: string | null;
+};
+
+export async function listDebts(): Promise<Debt[]> {
+  const response = await fetch("/api/debts", { cache: "no-store" });
+  const data = await parseJsonOrThrow<{ debts: Debt[] }>(response);
+  return data.debts;
+}
+
+export async function addDebt(input: {
+  name: string;
+  amount: number;
+  currency: string;
+  direction: "Debo yo" | "Me deben";
+  reason: string;
+}): Promise<Debt> {
+  const response = await fetch("/api/debts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  return (await parseJsonOrThrow<{ debt: Debt }>(response)).debt;
+}
+
+export async function setDebtStatus(id: number, status: "Por pagar" | "Pagado"): Promise<Debt> {
+  const response = await fetch(`/api/debts/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+  return (await parseJsonOrThrow<{ debt: Debt }>(response)).debt;
+}
+
+export async function removeDebt(id: number): Promise<void> {
+  const response = await fetch(`/api/debts/${id}`, { method: "DELETE" });
+  await parseJsonOrThrow<{ ok: boolean }>(response);
+}

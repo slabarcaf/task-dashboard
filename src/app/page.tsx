@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
+import { AppShell, AppView } from "@/components/AppShell";
 import { BoardView } from "@/components/BoardView";
 import { CategoryFilter } from "@/components/CategoryFilter";
+import { DebtsView } from "@/components/DebtsView";
 import { CommandPalette, PaletteCommand } from "@/components/CommandPalette";
 import { EditTaskDialog } from "@/components/EditTaskDialog";
 import { OnboardingScreen } from "@/components/OnboardingScreen";
@@ -16,8 +17,13 @@ import { useTasks } from "@/hooks/useTasks";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
 import {
+  Debt,
+  addDebt,
   addTask,
   deleteTask,
+  listDebts,
+  removeDebt,
+  setDebtStatus,
   getCurrentUser,
   getUserPreferences,
   logoutUser,
@@ -60,8 +66,11 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   // El tablero es la vista por defecto: da la forma de la semana de un vistazo,
   // que es lo que se quiere al abrir. "Hoy" es la lista para trabajar dentro.
-  const [view, setView] = useState<"today" | "board">("board");
+  const [view, setView] = useState<AppView>("board");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtsLoaded, setDebtsLoaded] = useState(false);
+  const [debtPending, setDebtPending] = useState<Record<number, boolean>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -225,6 +234,97 @@ export default function HomePage() {
   const visibleTasks = useMemo(
     () => (categoryFilter ? tasks.filter((task) => task.tipo === categoryFilter) : tasks),
     [categoryFilter, tasks]
+  );
+
+  /* ── deudas ──────────────────────────────────────────────────────────── */
+
+  // Se cargan al abrir la pestaña y no al entrar: la mayoría de las sesiones
+  // nunca las mira, y una consulta que nadie pidió es latencia regalada.
+  const loadDebts = useCallback(async () => {
+    try {
+      setDebts(await listDebts());
+      setDebtsLoaded(true);
+    } catch (debtsError) {
+      setError(debtsError instanceof Error ? debtsError.message : "No se pudieron cargar las deudas.");
+      setDebtsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === "debts" && !debtsLoaded && currentUser) void loadDebts();
+  }, [currentUser, debtsLoaded, loadDebts, view]);
+
+  const handleAddDebt = useCallback(
+    async (input: Parameters<typeof addDebt>[0]) => {
+      try {
+        const debt = await addDebt(input);
+        setDebts((current) => [debt, ...current]);
+        pushToast("Anotada");
+      } catch (addError) {
+        setError(addError instanceof Error ? addError.message : "No se pudo anotar.");
+        pushToast("No se pudo anotar", "error");
+      }
+    },
+    [pushToast]
+  );
+
+  const markDebt = useCallback(
+    async (debt: Debt, status: "Por pagar" | "Pagado") => {
+      setDebtPending((current) => ({ ...current, [debt.id]: true }));
+      try {
+        const updated = await setDebtStatus(debt.id, status);
+        setDebts((current) => current.map((row) => (row.id === debt.id ? updated : row)));
+      } catch (updateError) {
+        pushToast(updateError instanceof Error ? updateError.message : "No se pudo actualizar", "error");
+      } finally {
+        setDebtPending((current) => ({ ...current, [debt.id]: false }));
+      }
+    },
+    [pushToast]
+  );
+
+  const handleToggleDebt = useCallback(
+    (debt: Debt) => {
+      const next = debt.status === "Pagado" ? "Por pagar" : "Pagado";
+      void markDebt(debt, next);
+      if (next === "Pagado") {
+        pushUndoToast("Marcada como pagada", "Deshacer", () => void markDebt(debt, "Por pagar"));
+      }
+    },
+    [markDebt, pushUndoToast]
+  );
+
+  const handleDeleteDebt = useCallback(
+    async (debt: Debt) => {
+      const snapshot = debts;
+      setDebts((current) => current.filter((row) => row.id !== debt.id));
+      try {
+        await removeDebt(debt.id);
+        // Como en las tareas: se borra y se ofrece la vuelta. Al deshacer vuelve
+        // con id nuevo, que a nadie le consta salvo a un enlace guardado.
+        pushUndoToast("Eliminada", "Deshacer", () => {
+          void (async () => {
+            try {
+              const restored = await addDebt({
+                name: debt.name,
+                amount: debt.amount,
+                currency: debt.currency,
+                direction: debt.direction,
+                reason: debt.reason
+              });
+              setDebts((current) => [restored, ...current]);
+              if (debt.status === "Pagado") void markDebt(restored, "Pagado");
+            } catch {
+              pushToast("No se pudo recuperar", "error");
+            }
+          })();
+        });
+      } catch (deleteError) {
+        setDebts(snapshot);
+        pushToast(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar", "error");
+      }
+    },
+    [debts, markDebt, pushToast, pushUndoToast]
   );
 
   const handleQuickAdd = useCallback(
@@ -394,6 +494,7 @@ export default function HomePage() {
       { id: "settings", label: "Ajustes", run: () => router.push("/ajustes") },
       { id: "telegram", label: "Conectar Telegram", run: () => router.push("/ajustes") },
       { id: "board", label: "Ver Tablero", run: () => setView("board") },
+      { id: "debts", label: "Ver Deudas", run: () => setView("debts") },
       {
         id: "theme",
         label: theme === "dark" ? "Modo claro" : "Modo oscuro",
@@ -493,19 +594,21 @@ export default function HomePage() {
         </p>
       )}
 
-      <div className="mb-6">
-        <QuickCapture
+      {view !== "debts" && (
+        <div className="mb-6">
+          <QuickCapture
           ref={captureRef}
           today={today}
           language={UI_LANGUAGE}
           categories={categories}
           defaultCategory={categories[0] || "Otros"}
           disabled={isLoading}
-          onAdd={handleQuickAdd}
-        />
-      </div>
+            onAdd={handleQuickAdd}
+          />
+        </div>
+      )}
 
-      {!isLoading && (
+      {view !== "debts" && !isLoading && (
         <CategoryFilter
           categories={categories}
           selected={categoryFilter}
@@ -516,7 +619,16 @@ export default function HomePage() {
         />
       )}
 
-      {isLoading ? (
+      {view === "debts" ? (
+        <DebtsView
+          debts={debts}
+          isLoading={!debtsLoaded}
+          pendingIds={debtPending}
+          onAdd={handleAddDebt}
+          onToggleStatus={handleToggleDebt}
+          onDelete={(debt) => void handleDeleteDebt(debt)}
+        />
+      ) : isLoading ? (
         <p className="py-12 text-center text-sm text-ink-3">Cargando tus tareas…</p>
       ) : view === "today" ? (
         <TodayView

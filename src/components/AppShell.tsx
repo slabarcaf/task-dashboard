@@ -5,10 +5,12 @@ import { Wordmark } from "@/components/SignInScreen";
 import { cn } from "@/lib/cn";
 import { AuthUser } from "@/lib/types";
 
+export type AppView = "today" | "board" | "debts";
+
 type AppShellProps = {
   user: AuthUser;
-  view: "today" | "board";
-  onViewChange: (view: "today" | "board") => void;
+  view: AppView;
+  onViewChange: (view: AppView) => void;
   onLogout: () => void;
   onOpenPalette: () => void;
   theme: "light" | "dark";
@@ -38,6 +40,11 @@ export function AppShell({
             </ViewTab>
             <ViewTab active={view === "board"} onClick={() => onViewChange("board")}>
               Tablero
+            </ViewTab>
+            {/* Deudas es una pestaña más y no un nivel nuevo de navegación: dos
+                filas de botones para tres destinos es más cromo que producto. */}
+            <ViewTab active={view === "debts"} onClick={() => onViewChange("debts")}>
+              Deudas
             </ViewTab>
           </nav>
 

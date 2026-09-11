@@ -285,6 +285,29 @@ async function initialize(): Promise<void> {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_codes_user ON telegram_link_codes(user_id)`);
 
+      // Debts lived only in the bot's SQLite, so the web could not show them at
+      // all — the same split that made preferences disagree with themselves.
+      //
+      // ON DELETE CASCADE, unlike tasks' SET NULL: a debt belongs to the person
+      // who recorded it and means nothing without them. Tasks kept SET NULL for
+      // a historical reason that has since bitten us; there is no reason to
+      // repeat it here.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS debts (
+          id BIGSERIAL PRIMARY KEY,
+          user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          amount NUMERIC(14,2) NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          direction TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'Por pagar',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          status_changed_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_debts_user_id ON debts(user_id)`);
+
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
 
@@ -1037,4 +1060,111 @@ export async function deleteUserAndTheirTasks(
   } finally {
     client.release();
   }
+}
+
+
+/* ─── Deudas ──────────────────────────────────────────────────────────────
+   "Debo yo" / "Me deben", con su estado. Vivían solo en la SQLite del bot, así
+   que la web no podía mostrarlas. */
+
+export type DbDebt = {
+  id: number;
+  name: string;
+  amount: number;
+  currency: string;
+  direction: "Debo yo" | "Me deben";
+  reason: string;
+  status: "Por pagar" | "Pagado";
+  createdAt: string;
+  statusChangedAt: string | null;
+};
+
+type DebtRow = {
+  id: number;
+  name: string;
+  amount: string;
+  currency: string;
+  direction: string;
+  reason: string;
+  status: string;
+  created_at: Date;
+  status_changed_at: Date | null;
+};
+
+/** NUMERIC comes back from pg as a string; parsing it here keeps that off the UI. */
+function toDebt(row: DebtRow): DbDebt {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    amount: Number(row.amount),
+    currency: row.currency,
+    direction: row.direction === "Debo yo" ? "Debo yo" : "Me deben",
+    reason: row.reason || "",
+    status: row.status === "Pagado" ? "Pagado" : "Por pagar",
+    createdAt: new Date(row.created_at).toISOString(),
+    statusChangedAt: row.status_changed_at ? new Date(row.status_changed_at).toISOString() : null
+  };
+}
+
+/** The bot accepts free text for direction; this is the same normalisation. */
+export function normalizeDebtDirection(direction: string): "Debo yo" | "Me deben" {
+  const value = String(direction || "").toLowerCase();
+  if (/(me deben|owes me|me debe|they owe)/.test(value)) return "Me deben";
+  if (/(debo|i owe|owe)/.test(value)) return "Debo yo";
+  return "Me deben";
+}
+
+export async function listDebtsByUser(userId: number): Promise<DbDebt[]> {
+  await initialize();
+  const result = await getPool().query<DebtRow>(
+    `SELECT id, name, amount, currency, direction, reason, status, created_at, status_changed_at
+     FROM debts WHERE user_id = $1 ORDER BY status = 'Pagado', created_at DESC, id DESC`,
+    [userId]
+  );
+  return result.rows.map(toDebt);
+}
+
+export async function createDebtForUser(
+  userId: number,
+  input: { name: string; amount: number; currency?: string; direction: string; reason?: string }
+): Promise<DbDebt> {
+  await initialize();
+  const result = await getPool().query<DebtRow>(
+    `INSERT INTO debts (user_id, name, amount, currency, direction, reason)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, name, amount, currency, direction, reason, status, created_at, status_changed_at`,
+    [
+      userId,
+      input.name.trim(),
+      input.amount,
+      (input.currency || "USD").toUpperCase(),
+      normalizeDebtDirection(input.direction),
+      (input.reason || "").trim()
+    ]
+  );
+  return toDebt(result.rows[0]);
+}
+
+/** Scoped by user_id in the WHERE, so one account can never touch another's. */
+export async function updateDebtForUser(
+  id: number,
+  userId: number,
+  status: "Por pagar" | "Pagado"
+): Promise<DbDebt | null> {
+  await initialize();
+  const result = await getPool().query<DebtRow>(
+    `UPDATE debts
+     SET status = $1,
+         status_changed_at = CASE WHEN $1 = 'Pagado' THEN NOW() ELSE NULL END
+     WHERE id = $2 AND user_id = $3
+     RETURNING id, name, amount, currency, direction, reason, status, created_at, status_changed_at`,
+    [status, id, userId]
+  );
+  return result.rowCount ? toDebt(result.rows[0]) : null;
+}
+
+export async function deleteDebtForUser(id: number, userId: number): Promise<boolean> {
+  await initialize();
+  const result = await getPool().query(`DELETE FROM debts WHERE id = $1 AND user_id = $2`, [id, userId]);
+  return (result.rowCount || 0) > 0;
 }
