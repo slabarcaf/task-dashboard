@@ -232,6 +232,16 @@ lives on a phone, so its absence reads as a decision rather than a gap.
 mishears, and a task created silently from a misheard phrase is worse than
 having no voice at all — you find out the day the reminder does not come.
 
+Dictating a category works too: say "en categoría Finanzas" and the selector
+follows, highlighted, with the phrase removed from the title. **Only explicit
+phrasing** — a bare "un asunto personal" is not the Personal category, and
+guessing there files the task where nobody will look for it. Same principle as
+dates.
+
+When nothing is named, the default is **Otros**, not the first category in the
+list. Proposing a real, specific category with confidence for a task we know
+nothing about is how things end up misfiled.
+
 The Whisper prompt is built per user in `src/lib/voicePrompt.ts`: generic task
 vocabulary (without it, "con vencimiento mañana" reliably becomes
 "Convencimiento mañana") plus that person's own category names. `melissa.js`

@@ -3,6 +3,7 @@
 import { FormEvent, forwardRef, useMemo, useState } from "react";
 import { categoryLabel, AppLanguage } from "@/lib/categories";
 import { formatShortDate } from "@/lib/date";
+import { cn } from "@/lib/cn";
 import { parseTaskInput } from "@/lib/parseTaskInput";
 import { VoiceButton } from "@/components/VoiceButton";
 
@@ -30,10 +31,19 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
   ref
 ) {
   const [text, setText] = useState("");
-  const [tipo, setTipo] = useState(defaultCategory);
+  const [manualTipo, setManualTipo] = useState(defaultCategory);
   const [busy, setBusy] = useState(false);
 
-  const parsed = useMemo(() => parseTaskInput(text, today), [text, today]);
+  const parsed = useMemo(
+    () => parseTaskInput(text, today, categories),
+    [text, today, categories]
+  );
+
+  // Si la frase nombra una categoría, manda ella. Se recalcula en cada tecla,
+  // así que no hace falta esperar ni refrescar nada: el selector va siguiendo lo
+  // que se escribe. La elección manual gana sobre lo dictado sólo mientras el
+  // texto no vuelva a nombrar otra.
+  const tipo = parsed.tipo || manualTipo;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -85,9 +95,15 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
 
       <select
         value={tipo}
-        onChange={(event) => setTipo(event.target.value)}
+        onChange={(event) => setManualTipo(event.target.value)}
         aria-label="Categoría"
-        className="min-w-0 rounded-field border border-line bg-sunken px-2 py-1 text-[12.5px] font-semibold text-ink-2 outline-none"
+        title={parsed.tipo ? `Leí “${parsed.tipoMatchedText}” en lo que escribiste` : undefined}
+        className={cn(
+          "min-w-0 rounded-field border px-2 py-1 text-[12.5px] font-semibold outline-none",
+          parsed.tipo
+            ? "border-brand/40 bg-brand-soft text-brand"
+            : "border-line bg-sunken text-ink-2"
+        )}
       >
         {categories.map((option) => (
           <option key={option} value={option}>

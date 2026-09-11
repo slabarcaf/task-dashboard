@@ -265,6 +265,20 @@ export default function HomePage() {
     return counts;
   }, [openTasks]);
 
+  /**
+   * "Otros" antes que la primera de la lista.
+   *
+   * El selector proponía `categories[0]`, que por orden alfabético caía en
+   * "Ayudantias" — una categoría real y concreta, propuesta con seguridad, para
+   * una tarea de la que no sabemos nada. Eso archiva cosas donde nadie las
+   * busca. "Otros" significa justamente "todavía sin clasificar", que es la
+   * verdad mientras nadie diga otra cosa.
+   */
+  const defaultCategory = useMemo(
+    () => categories.find((option) => option.toLowerCase() === "otros") || categories[0] || "Otros",
+    [categories]
+  );
+
   const visibleTasks = useMemo(
     () => (categoryFilter ? tasks.filter((task) => task.tipo === categoryFilter) : tasks),
     [categoryFilter, tasks]
@@ -635,7 +649,7 @@ export default function HomePage() {
           today={today}
           language={UI_LANGUAGE}
           categories={categories}
-          defaultCategory={categories[0] || "Otros"}
+          defaultCategory={defaultCategory}
             disabled={isLoading}
             onVoiceError={(message) => pushToast(message, "error")}
             onAdd={handleQuickAdd}

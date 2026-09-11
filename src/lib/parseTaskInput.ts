@@ -15,12 +15,16 @@ import { addDaysToIsoDate } from "@/lib/date";
  */
 
 export type ParsedTaskInput = {
-  /** The title with the date phrase removed. */
+  /** The title with the date and category phrases removed. */
   title: string;
   /** ISO date, or null when nothing was recognised. */
   dueDate: string | null;
   /** The exact words that were consumed, for showing the user what was read. */
   matchedText: string | null;
+  /** A category named in the sentence, or null. Only ever one the user already has. */
+  tipo: string | null;
+  /** The words that named it, for the same reason as `matchedText`. */
+  tipoMatchedText: string | null;
 };
 
 const WEEKDAYS: Record<string, number> = {
@@ -42,6 +46,16 @@ const MONTHS: Record<string, number> = {
   nov: 11, noviembre: 11, november: 11,
   dic: 12, diciembre: 12, dec: 12, december: 12
 };
+
+/**
+ * Palabras que anuncian una fecha y no dicen nada por sí solas.
+ *
+ * Importa más de lo que parece: el prompt que se le pasa a Whisper **enseña** a
+ * decir "con vencimiento mañana", así que la gente lo dicta así. Si solo se quita
+ * "mañana", el título queda con un "con vencimiento," colgando — enseñamos una
+ * forma de hablar y después no la entendíamos entera.
+ */
+const DUE_LEAD_IN = /\s*(?:,\s*)?\b(?:con\s+vencimiento(?:\s+el)?|vence\s+(?:el|la)?|fecha\s+de\s+vencimiento(?:\s+el)?|para\s+el|due(?:\s+(?:on|by))?)\s*$/i;
 
 function fold(value: string): string {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -66,9 +80,22 @@ function isoFromDayMonth(todayIso: string, day: number, month: number): string |
   return iso < todayIso ? `${year + 1}${iso.slice(4)}` : iso;
 }
 
-export function parseTaskInput(raw: string, todayIso: string): ParsedTaskInput {
-  const text = String(raw || "");
-  const plain = { title: text.trim(), dueDate: null, matchedText: null } as ParsedTaskInput;
+export function parseTaskInput(
+  raw: string,
+  todayIso: string,
+  categories: string[] = []
+): ParsedTaskInput {
+  // La categoría se saca primero: suele ir al final y, si se va antes, no
+  // estorba a los patrones de fecha que también miran el final de la frase.
+  const category = parseCategoryIn(String(raw || ""), categories);
+  const text = category.rest;
+  const plain: ParsedTaskInput = {
+    title: text.trim(),
+    dueDate: null,
+    matchedText: null,
+    tipo: category.tipo,
+    tipoMatchedText: category.matchedText
+  };
   if (!text.trim()) return plain;
 
   const attempts: Array<{ re: RegExp; resolve: (m: RegExpMatchArray) => string | null }> = [
@@ -119,16 +146,60 @@ export function parseTaskInput(raw: string, todayIso: string): ParsedTaskInput {
     const dueDate = attempt.resolve(match);
     if (!dueDate) continue;
 
-    const title = (text.slice(0, match.index) + text.slice((match.index || 0) + match[0].length))
-      .replace(/\s{2,}/g, " ")
-      .replace(/\s+([,.;:])/g, "$1")
-      .trim();
+    // El texto antes de la fecha pierde también su preámbulo ("con vencimiento"),
+    // que sin la fecha no significa nada.
+    const before = text.slice(0, match.index).replace(DUE_LEAD_IN, "");
+    const title = tidy(before + text.slice((match.index || 0) + match[0].length));
 
     // Refuse to eat the whole sentence: "viernes" on its own is the task.
     if (!title) return plain;
 
-    return { title, dueDate, matchedText: match[0].trim() };
+    return { ...plain, title, dueDate, matchedText: match[0].trim() };
   }
 
   return plain;
+}
+
+/** Limpia los restos de haberle sacado un trozo a una frase. */
+function tidy(value: string): string {
+  return value
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/,\s*([,.;:])/g, "$1")
+    .replace(/^[\s,;:.]+/, "")
+    .replace(/[\s,;:]+$/, "")
+    .trim();
+}
+
+/**
+ * Saca del texto una categoría que la persona nombró explícitamente.
+ *
+ * **Solo formas explícitas** — "en categoría Otros", "categoría: Finanzas". No
+ * busca el nombre suelto, y es a propósito: "un asunto personal" no es la
+ * categoría Personal, y equivocarse aquí archiva la tarea donde nadie la va a
+ * buscar. Igual que con las fechas, un parser que adivina es peor que uno que se
+ * abstiene.
+ *
+ * Y solo reconoce categorías que esa persona ya tiene. Inventar una desde una
+ * frase dictada es cómo se llena la base de vocabulario que nadie eligió.
+ */
+export function parseCategoryIn(
+  raw: string,
+  categories: string[]
+): { tipo: string | null; matchedText: string | null; rest: string } {
+  const text = String(raw || "");
+  const match = text.match(
+    /\s*(?:,\s*)?\b(?:en\s+(?:la\s+)?)?categor[ií]a\s*:?\s*([\p{L}\d][\p{L}\d\s.&-]*?)\s*$/iu
+  );
+  if (!match) return { tipo: null, matchedText: null, rest: text };
+
+  const spoken = fold(match[1].replace(/[.,;:]+$/, ""));
+  const hit = categories.find((category) => fold(category) === spoken);
+  if (!hit) return { tipo: null, matchedText: null, rest: text };
+
+  return {
+    tipo: hit,
+    matchedText: match[0].trim().replace(/[.,;:]+$/, ""),
+    rest: tidy(text.slice(0, match.index))
+  };
 }
