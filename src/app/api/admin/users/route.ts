@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromCookies } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
 import { sendInviteEmail } from "@/lib/server/mail";
+import { LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
 import {
   INVITE_CODE_TTL_MINUTES,
   createTelegramLinkCode,
@@ -55,19 +56,20 @@ export async function GET() {
 /**
  * Creates an account and invites the person to it.
  *
- * ⚠️ Worth being straight about what the account itself buys, because it is
- * less than it looks: **anyone with a Google account can already sign in and get
- * one made automatically.** Pre-creating does not gate anything. What it does
- * give is a name attached before they arrive, and — the part that actually
- * earns its keep — a row in the admin table whose last sign-in reads "nunca",
- * which is how you find out an invitation never landed.
+ * **Esta ruta es ahora el único lugar que crea cuentas.** Desde el 2026-09-11
+ * `/api/auth/google` ya no crea ninguna: firmar con Google prueba quién eres, no
+ * que puedas entrar. Así que esta fila ya no es solo un nombre puesto por
+ * adelantado — es el permiso mismo. Sigue sirviendo además para lo de antes: una
+ * fila cuyo último acceso dice "nunca" es cómo se descubre que la invitación
+ * nunca llegó.
  *
  * The mail is the real feature, and it only goes out when RESEND_API_KEY is set.
  * When it is not, the response says so and the screen hands over a message to
  * send by hand instead of pretending something was delivered.
  *
- * If this should ever become real access control — only invited addresses may
- * sign in — that is a decision about the sign-in route, not about this one.
+ * (Esto era antes "si alguna vez esto fuera control de acceso real, sería una
+ * decisión de la ruta de acceso". Lo es desde el 2026-09-11, y la decisión se
+ * tomó allá: `linkGoogleIdentity` devuelve null y nadie entra.)
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUserFromCookies();
@@ -83,6 +85,9 @@ export async function POST(request: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return NextResponse.json({ error: "Ese correo no parece válido." }, { status: 400 });
   }
+
+  const gate = await consumeRateLimit(`invite:${user.id}`, LIMITS.invite);
+  if (!gate.allowed) return tooManyRequests(gate.retryAfterSeconds);
 
   const existing = await findUserByEmail(email);
   if (existing) {

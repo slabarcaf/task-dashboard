@@ -27,6 +27,14 @@ export async function verifyGoogleCredential(credential: string): Promise<{
     throw new Error("Invalid Google token payload");
   }
 
+  // Sin esto, toda la app cuelga de un string. `isAdminUser` compara el correo
+  // y nada más, así que un token con un correo sin verificar que coincidiera con
+  // ADMIN_EMAILS sería administrador. Google no emite eso en este flujo — pero
+  // "el proveedor no suele hacerlo" no es un control de acceso.
+  if (payload.email_verified !== true) {
+    throw new Error("Google email is not verified");
+  }
+
   return {
     email: payload.email,
     name: payload.name || "",

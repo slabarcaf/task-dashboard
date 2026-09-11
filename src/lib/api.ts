@@ -96,6 +96,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return data.user;
 }
 
+/**
+ * Entrar. Puede fallar por no estar invitado, que no es un error técnico y no
+ * debería leerse como uno: `parseJsonOrThrow` mostraría el código crudo
+ * `not_invited` en pantalla. Se traduce aquí, donde está el idioma.
+ */
 export async function signInWithGoogle(credential: string): Promise<AuthUser> {
   const response = await fetch("/api/auth/google", {
     method: "POST",
@@ -104,6 +109,16 @@ export async function signInWithGoogle(credential: string): Promise<AuthUser> {
     },
     body: JSON.stringify({ credential })
   });
+
+  if (response.status === 403) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(
+      payload?.detail || "Sydney es por invitación. Pídesela a quien te habló de esto."
+    );
+  }
+  if (response.status === 429) {
+    throw new Error("Demasiados intentos. Espera unos minutos.");
+  }
 
   const data = await parseJsonOrThrow<AuthGoogleResponse>(response);
   return data.user;

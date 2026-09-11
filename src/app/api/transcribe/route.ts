@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBotUserIfAuthorized, getCurrentUserFromCookies } from "@/lib/server/auth";
 import { DbUser, getUserPreferencesByUserId } from "@/lib/server/db";
 import { buildVoicePrompt } from "@/lib/voicePrompt";
+import { LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 // Un audio de dos minutos tarda varios segundos en transcribirse.
@@ -35,6 +36,12 @@ async function resolveUser(request: NextRequest): Promise<DbUser | null> {
 export async function POST(request: NextRequest) {
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+  // El único camino de la app que cuesta dinero por llamada. El límite es por
+  // persona, no por IP: la cuenta es lo que paga, y compartir wifi no debería
+  // costarle la voz a nadie.
+  const gate = await consumeRateLimit(`transcribe:${user.id}`, LIMITS.transcribe);
+  if (!gate.allowed) return tooManyRequests(gate.retryAfterSeconds);
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {

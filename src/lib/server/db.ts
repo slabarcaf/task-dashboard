@@ -311,6 +311,18 @@ async function initialize(): Promise<void> {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
 
+      // Rate limiting lives in Postgres rather than in memory on purpose. Each
+      // serverless instance has its own memory, so an in-memory counter is a
+      // limit per instance — which under load is no limit at all, and the paths
+      // worth limiting here are the ones that spend money.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS rate_limits (
+          key TEXT PRIMARY KEY,
+          window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          hits INTEGER NOT NULL DEFAULT 0
+        )
+      `);
+
       await ensureOwnerUserAndBackfill(pool);
     })();
   }
@@ -320,6 +332,40 @@ async function initialize(): Promise<void> {
 
 export async function initDb(): Promise<void> {
   await initialize();
+}
+
+/**
+ * One hit against a fixed window, counted in Postgres so the count is shared by
+ * every serverless instance. Returns the running total and how old the window
+ * is; deciding what to do with that is `rateLimit.ts`'s job, not this one's.
+ */
+export async function rateLimitHit(
+  key: string,
+  windowSeconds: number
+): Promise<{ hits: number; ageSeconds: number }> {
+  await initialize();
+  const result = await getPool().query<{ hits: number; age_seconds: number }>(
+    `INSERT INTO rate_limits (key, window_start, hits)
+     VALUES ($1, NOW(), 1)
+     ON CONFLICT (key) DO UPDATE SET
+       window_start = CASE
+         WHEN rate_limits.window_start < NOW() - make_interval(secs => $2::float)
+         THEN NOW() ELSE rate_limits.window_start END,
+       hits = CASE
+         WHEN rate_limits.window_start < NOW() - make_interval(secs => $2::float)
+         THEN 1 ELSE rate_limits.hits + 1 END
+     RETURNING hits, EXTRACT(EPOCH FROM (NOW() - window_start))::int AS age_seconds`,
+    [key, windowSeconds]
+  );
+  const row = result.rows[0];
+  return { hits: row.hits, ageSeconds: row.age_seconds };
+}
+
+/** Housekeeping: windows nobody has touched in a day are dead weight. */
+export async function pruneRateLimits(): Promise<void> {
+  await getPool().query(
+    `DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL '1 day'`
+  );
 }
 
 export async function listDbTasksByUser(userId: number): Promise<DbTask[]> {
@@ -813,11 +859,26 @@ export async function createUser(input: {
   return toUser(result.rows[0]);
 }
 
-export async function upsertGoogleUser(input: {
+/**
+ * Claims an existing account for a Google identity. **Never creates one.**
+ *
+ * Sydney is invite-only: a row has to exist before anybody can sign in, and the
+ * only things that make rows are the admin invitation and a migration. Sign-in
+ * matches on `google_sub` first and falls back to the email, which is what lets
+ * an invitation —an email with no `google_sub` yet— be claimed the first time
+ * that person arrives.
+ *
+ * Returns `null` when there is no row, and the caller turns that into the
+ * "you need an invitation" screen. It is deliberately the same answer whether
+ * the address was never invited or was invited and then deleted: a sign-in page
+ * that distinguishes the two is an address-enumeration oracle for anyone with a
+ * Google account and a list of guesses.
+ */
+export async function linkGoogleIdentity(input: {
   email: string;
   name?: string;
   googleSub: string;
-}): Promise<DbUser> {
+}): Promise<DbUser | null> {
   await initialize();
 
   const email = input.email.trim().toLowerCase();
@@ -873,15 +934,10 @@ export async function upsertGoogleUser(input: {
       return toUser(updated.rows[0]);
     }
 
-    const created = await client.query<UserRow>(
-      `INSERT INTO users (email, name, google_sub, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       RETURNING id, email, name, telegram_chat_id`,
-      [email, name, googleSub]
-    );
-
+    // No row, no account. This is the whole of the invite-only rule; there is
+    // no second place that creates a user from a sign-in.
     await client.query("COMMIT");
-    return toUser(created.rows[0]);
+    return null;
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
