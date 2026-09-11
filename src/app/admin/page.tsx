@@ -33,7 +33,12 @@ export default function AdminPage() {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [invite, setInvite] = useState<
-    { to: string; appUrl?: string; reason?: "not_configured" | "failed" } | null
+    {
+      to: string;
+      appUrl?: string;
+      telegramLink?: string;
+      reason?: "not_configured" | "failed";
+    } | null
   >(null);
 
   const load = useCallback(async () => {
@@ -177,7 +182,16 @@ export default function AdminPage() {
           try {
             const invite = await createAdminUser(newEmail, newName);
             const to = newEmail.trim().toLowerCase();
-            setInvite(invite.sent ? { to } : { to, appUrl: invite.appUrl, reason: invite.reason });
+            setInvite(
+              invite.sent
+                ? { to }
+                : {
+                    to,
+                    appUrl: invite.appUrl,
+                    telegramLink: invite.telegramLink,
+                    reason: invite.reason
+                  }
+            );
             setNewEmail("");
             setNewName("");
             await load();
@@ -233,9 +247,9 @@ export default function AdminPage() {
                 </p>
                 <textarea
                   readOnly
-                  rows={3}
+                  rows={5}
                   onFocus={(event) => event.currentTarget.select()}
-                  value={`Te invité a Sydney, una lista de tareas a la que le puedes escribir como a una persona. Entra con ${invite.to}: ${invite.appUrl}`}
+                  value={`Te invité a Sydney, una lista de tareas a la que le puedes escribir como a una persona.\n\nEn la web, con ${invite.to}: ${invite.appUrl}\nO directo al chat: ${invite.telegramLink}\n\nCualquiera de los dos te deja dentro, son la misma cuenta.`}
                   className="mt-2 w-full resize-none rounded-field border border-line bg-surface px-3 py-2 text-[12.5px] text-ink-2 outline-none"
                 />
                 {invite.reason === "not_configured" && (

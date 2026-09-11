@@ -26,6 +26,7 @@ export function mailIsConfigured(): boolean {
 export async function sendInviteEmail(input: {
   to: string;
   appUrl: string;
+  telegramLink: string;
   invitedBy: string;
 }): Promise<MailResult> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -61,7 +62,7 @@ export async function sendInviteEmail(input: {
 }
 
 /** Texto plano primero: es lo que ve quien filtra HTML, y no es poca gente. */
-function inviteText({ appUrl, invitedBy }: { appUrl: string; invitedBy: string }): string {
+function inviteText({ appUrl, telegramLink, invitedBy }: { appUrl: string; telegramLink: string; invitedBy: string }): string {
   return [
     `${invitedBy} te invitó a Sydney.`,
     "",
@@ -69,9 +70,12 @@ function inviteText({ appUrl, invitedBy }: { appUrl: string; invitedBy: string }
     "Le dices “pagar la luz el viernes” y la anota con fecha. Te escribe dos veces",
     "al día: en la mañana lo que viene, en la noche lo que quedó.",
     "",
-    `Entra con este mismo correo: ${appUrl}`,
+    "Puedes entrar por donde prefieras, son la misma cuenta:",
     "",
-    "Al entrar te va a preguntar cuatro cosas y queda lista."
+    `  En la web, con este mismo correo:  ${appUrl}`,
+    `  O directo al chat de Telegram:     ${telegramLink}`,
+    "",
+    "Cualquiera de los dos te deja dentro. El enlace de Telegram sirve 30 días."
   ].join("\n");
 }
 
@@ -81,7 +85,7 @@ function inviteText({ appUrl, invitedBy }: { appUrl: string; invitedBy: string }
  * No es descuido — los clientes de correo no soportan flexbox ni hojas de
  * estilo externas de forma confiable, y Gmail borra el `<style>` del head.
  */
-function inviteHtml({ appUrl, invitedBy }: { appUrl: string; invitedBy: string }): string {
+function inviteHtml({ appUrl, telegramLink, invitedBy }: { appUrl: string; telegramLink: string; invitedBy: string }): string {
   const esc = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -103,13 +107,15 @@ function inviteHtml({ appUrl, invitedBy }: { appUrl: string; invitedBy: string }
           en la mañana lo que viene, en la noche lo que quedó pendiente.
         </p>
         <p style="margin:0 0 22px;color:#5B6188;font-size:14.5px;line-height:1.6;">
-          Entra con <b style="color:#151A3A;">este mismo correo</b> y queda lista en cuatro preguntas.
+          Entra por donde prefieras — <b style="color:#151A3A;">son la misma cuenta</b>, las mismas
+          tareas y las mismas deudas en los dos lados.
         </p>
       </td></tr>
       <tr><td style="padding:0 28px 28px;">
-        <a href="${esc(appUrl)}" style="display:inline-block;background:#3D4BC7;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;padding:12px 22px;border-radius:8px;">Entrar a Sydney</a>
+        <a href="${esc(appUrl)}" style="display:inline-block;background:#3D4BC7;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;padding:12px 22px;border-radius:8px;">Abrir en la web</a>
+        <a href="${esc(telegramLink)}" style="display:inline-block;margin-left:8px;background:#FFFFFF;color:#3D4BC7;text-decoration:none;font-size:15px;font-weight:600;padding:11px 21px;border:1px solid #C8CEF2;border-radius:8px;">Abrir en Telegram</a>
         <p style="margin:16px 0 0;color:#8A90B0;font-size:12.5px;line-height:1.5;word-break:break-all;">
-          O copia esta dirección: ${esc(appUrl)}
+          Web: ${esc(appUrl)}<br>Telegram: ${esc(telegramLink)} (sirve 30 días)
         </p>
       </td></tr>
     </table>

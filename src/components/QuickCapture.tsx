@@ -4,6 +4,7 @@ import { FormEvent, forwardRef, useMemo, useState } from "react";
 import { categoryLabel, AppLanguage } from "@/lib/categories";
 import { formatShortDate } from "@/lib/date";
 import { parseTaskInput } from "@/lib/parseTaskInput";
+import { VoiceButton } from "@/components/VoiceButton";
 
 type QuickCaptureProps = {
   today: string;
@@ -11,6 +12,7 @@ type QuickCaptureProps = {
   categories: string[];
   defaultCategory: string;
   disabled?: boolean;
+  onVoiceError: (message: string) => void;
   onAdd: (input: { title: string; dueDate: string; tipo: string }) => Promise<void> | void;
 };
 
@@ -24,7 +26,7 @@ type QuickCaptureProps = {
  * web silently defaulting was how two vocabularies ended up in one database.
  */
 export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(function QuickCapture(
-  { today, language, categories, defaultCategory, disabled, onAdd },
+  { today, language, categories, defaultCategory, disabled, onVoiceError, onAdd },
   ref
 ) {
   const [text, setText] = useState("");
@@ -63,6 +65,16 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
         autoComplete="off"
         aria-label="Nueva tarea"
         className="min-w-[12rem] flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3"
+      />
+
+      {/* La transcripción entra al campo, no crea la tarea: quien dictó tiene que
+          poder leer lo que se entendió antes de que se convierta en algo. */}
+      <VoiceButton
+        disabled={disabled || busy}
+        onError={onVoiceError}
+        onTranscript={(text) =>
+          setText((current) => (current.trim() ? `${current.trim()} ${text}` : text))
+        }
       />
 
       {parsed.dueDate && parsed.matchedText && (

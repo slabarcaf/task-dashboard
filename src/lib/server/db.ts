@@ -491,8 +491,20 @@ const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 // linking to an account the person already authenticated into, so a long window
 // costs little.
 const LINK_CODE_TTL_MINUTES = 60 * 24;
+/**
+ * Un código nacido de una invitación dura 30 días, no 24 horas.
+ *
+ * El de 24 horas es para alguien que está mirando su pantalla de Ajustes y va a
+ * escanear el QR ahora. Una invitación por correo la abre quien la recibe cuando
+ * puede — el lunes, o al volver de un viaje — y llegar a un código muerto es
+ * llegar a una puerta cerrada sin saber por qué.
+ */
+export const INVITE_CODE_TTL_MINUTES = 60 * 24 * 30;
 
-export async function createTelegramLinkCode(userId: number): Promise<{ code: string; expiresAt: Date }> {
+export async function createTelegramLinkCode(
+  userId: number,
+  ttlMinutes: number = LINK_CODE_TTL_MINUTES
+): Promise<{ code: string; expiresAt: Date }> {
   await initialize();
   const pool = getPool();
 
@@ -502,7 +514,7 @@ export async function createTelegramLinkCode(userId: number): Promise<{ code: st
 
   let code = "";
   for (let i = 0; i < 8; i++) code += LINK_CODE_ALPHABET[crypto.randomInt(LINK_CODE_ALPHABET.length)];
-  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
 
   await pool.query(
     `INSERT INTO telegram_link_codes (code, user_id, expires_at) VALUES ($1, $2, $3)`,

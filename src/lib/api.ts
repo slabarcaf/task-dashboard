@@ -225,7 +225,7 @@ export async function updatePreferences(patch: PreferencePatch): Promise<UserPre
 
 export type InviteOutcome =
   | { sent: true }
-  | { sent: false; reason: "not_configured" | "failed"; appUrl: string };
+  | { sent: false; reason: "not_configured" | "failed"; appUrl: string; telegramLink: string };
 
 export async function createAdminUser(email: string, name: string): Promise<InviteOutcome> {
   const response = await fetch("/api/admin/users", {

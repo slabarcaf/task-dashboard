@@ -636,7 +636,8 @@ export default function HomePage() {
           language={UI_LANGUAGE}
           categories={categories}
           defaultCategory={categories[0] || "Otros"}
-          disabled={isLoading}
+            disabled={isLoading}
+            onVoiceError={(message) => pushToast(message, "error")}
             onAdd={handleQuickAdd}
           />
         </div>

@@ -1,0 +1,200 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/cn";
+
+type VoiceButtonProps = {
+  disabled?: boolean;
+  /** Recibe el texto transcrito. No crea nada: quien grabó lo revisa antes. */
+  onTranscript: (text: string) => void;
+  onError: (message: string) => void;
+};
+
+type State = "idle" | "recording" | "transcribing";
+
+/** Dos minutos. Más que eso ya no es una nota de voz, es un monólogo. */
+const MAX_MS = 120_000;
+/** Bajo esto no hubo intención de grabar: fue un clic. */
+const MIN_MS = 350;
+
+/**
+ * Mantener pulsado para grabar, soltar para transcribir — como WhatsApp.
+ *
+ * También funciona con un clic corto: pulsar y soltar rápido deja la grabación
+ * **abierta** hasta el siguiente clic. Mantener el dedo apretado treinta
+ * segundos es incómodo en un escritorio, y la alternativa no cuesta nada.
+ *
+ * El resultado entra al campo de texto, no crea la tarea. Whisper se equivoca, y
+ * una tarea creada en silencio desde una frase mal oída es peor que no tener
+ * voz: la persona la descubre el día que el recordatorio no llega.
+ */
+export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProps) {
+  const [state, setState] = useState<State>("idle");
+  const [elapsed, setElapsed] = useState(0);
+  const [supported, setSupported] = useState(true);
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const startedAtRef = useRef(0);
+  const latchedRef = useRef(false);
+  const stopTimerRef = useRef<number | null>(null);
+  const tickRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // getUserMedia no existe sin HTTPS (localhost aparte), y MediaRecorder falta
+    // en navegadores viejos. Mejor no mostrar un botón que no puede funcionar.
+    setSupported(
+      typeof window !== "undefined" &&
+        typeof window.MediaRecorder !== "undefined" &&
+        Boolean(navigator.mediaDevices?.getUserMedia)
+    );
+  }, []);
+
+  const cleanup = useCallback(() => {
+    if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+    if (tickRef.current) window.clearInterval(tickRef.current);
+    stopTimerRef.current = null;
+    tickRef.current = null;
+    recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    recorderRef.current = null;
+  }, []);
+
+  useEffect(() => cleanup, [cleanup]);
+
+  const transcribe = useCallback(
+    async (blob: Blob) => {
+      setState("transcribing");
+      try {
+        const form = new FormData();
+        form.append("audio", blob, "nota");
+        const response = await fetch("/api/transcribe", { method: "POST", body: form });
+        const data = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          text?: string;
+          error?: string;
+          detail?: string;
+        };
+
+        if (!response.ok || !data.ok) {
+          onError(
+            data.error === "not_configured"
+              ? "Las notas de voz no están configuradas todavía (falta OPENAI_API_KEY)."
+              : data.error || "No se pudo transcribir."
+          );
+          return;
+        }
+        if (!data.text) {
+          onError("No se entendió nada. Intenta de nuevo, más cerca del micrófono.");
+          return;
+        }
+        onTranscript(data.text);
+      } catch {
+        onError("No se pudo transcribir.");
+      } finally {
+        setState("idle");
+      }
+    },
+    [onError, onTranscript]
+  );
+
+  const stop = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    recorder.stop();
+  }, []);
+
+  const start = useCallback(async () => {
+    if (state !== "idle" || disabled) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      startedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const held = Date.now() - startedAtRef.current;
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        cleanup();
+        setElapsed(0);
+        setState("idle");
+        // Un toque accidental no se manda a transcribir: cuesta dinero y
+        // devuelve ruido.
+        if (held < MIN_MS || blob.size === 0) return;
+        void transcribe(blob);
+      };
+
+      recorder.start();
+      setState("recording");
+      tickRef.current = window.setInterval(
+        () => setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000)),
+        250
+      );
+      stopTimerRef.current = window.setTimeout(stop, MAX_MS);
+    } catch (error) {
+      const denied = error instanceof Error && /denied|NotAllowed/i.test(error.name + error.message);
+      onError(
+        denied
+          ? "El navegador no dio permiso al micrófono. Habilítalo para este sitio y vuelve a intentar."
+          : "No se pudo abrir el micrófono."
+      );
+      setState("idle");
+    }
+  }, [cleanup, disabled, onError, state, stop, transcribe]);
+
+  if (!supported) return null;
+
+  const recording = state === "recording";
+  const busy = state === "transcribing";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled || busy}
+      aria-label={recording ? "Soltar para transcribir" : "Grabar una nota de voz"}
+      title={recording ? "Suelta para transcribir" : "Mantén pulsado para grabar"}
+      // pointer* y no mouse*: cubre dedo, mouse y lápiz con un solo camino.
+      onPointerDown={(event) => {
+        event.preventDefault();
+        latchedRef.current = false;
+        void start();
+      }}
+      onPointerUp={() => {
+        // Un toque corto deja la grabación abierta; el siguiente clic la cierra.
+        if (Date.now() - startedAtRef.current < MIN_MS && state === "recording") {
+          latchedRef.current = true;
+          return;
+        }
+        stop();
+      }}
+      onPointerLeave={() => {
+        if (!latchedRef.current) stop();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          if (recording) stop();
+          else void start();
+        }
+      }}
+      className={cn(
+        "relative grid h-8 w-8 flex-none place-items-center rounded-full text-[15px] transition-colors",
+        recording
+          ? "animate-pulse bg-late text-white"
+          : busy
+            ? "bg-sunken text-ink-3"
+            : "text-ink-3 hover:bg-raised hover:text-ink"
+      )}
+    >
+      {busy ? <span className="text-[12px]">…</span> : recording ? "■" : "🎙"}
+      {recording && (
+        <span className="num absolute -bottom-5 rounded-chip bg-late px-1.5 text-[10.5px] font-semibold text-white">
+          {elapsed}s
+        </span>
+      )}
+    </button>
+  );
+}

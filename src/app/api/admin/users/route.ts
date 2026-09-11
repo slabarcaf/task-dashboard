@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromCookies } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
 import { sendInviteEmail } from "@/lib/server/mail";
-import { createUser, findUserByEmail, listAdminUserOverview } from "@/lib/server/db";
+import {
+  INVITE_CODE_TTL_MINUTES,
+  createTelegramLinkCode,
+  createUser,
+  findUserByEmail,
+  listAdminUserOverview
+} from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -70,9 +76,19 @@ export async function POST(request: NextRequest) {
   // La dirección real desde la que llegó esta petición, no una constante que se
   // queda vieja el día que cambie el dominio.
   const origin = request.nextUrl.origin;
+
+  // Las dos puertas en la misma invitación. El código de Telegram ya apunta a
+  // esta cuenta, así que quien abra ese enlace queda dentro sin pasar por la web
+  // — y es lo que desatasca el camino de invitar por Telegram, que hasta ahora
+  // daba 401 porque no había fila en Postgres a la que engancharse.
+  const { code } = await createTelegramLinkCode(created.id, INVITE_CODE_TTL_MINUTES);
+  const botUsername = (process.env.NEXT_PUBLIC_TELEGRAM_BOT || "Melizion_bot").replace(/^@/, "");
+  const telegramLink = `https://t.me/${botUsername}?start=link_${code}`;
+
   const mail = await sendInviteEmail({
     to: email,
     appUrl: origin,
+    telegramLink,
     invitedBy: user.name || user.email
   });
 
@@ -83,6 +99,6 @@ export async function POST(request: NextRequest) {
     // afirma haber mandado y no mandó es peor que no tener invitaciones.
     invite: mail.sent
       ? { sent: true as const }
-      : { sent: false as const, reason: mail.reason, appUrl: origin }
+      : { sent: false as const, reason: mail.reason, appUrl: origin, telegramLink }
   });
 }
