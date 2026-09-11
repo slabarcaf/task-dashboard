@@ -11,7 +11,8 @@
     "db:migrate:from-sheet": "node scripts/migrate-from-apps-script.mjs",
     "test": "node --test tests/*.test.mjs",
     "check": "tsc --noEmit && next lint && node --test tests/*.test.mjs",
-    "build:safe": "rm -rf .next && next build"
+    "build:safe": "rm -rf .next && next build",
+    "verify:sync": "node scripts/verify-sync.mjs"
   },
   "dependencies": {
     "google-auth-library": "^10.6.1",

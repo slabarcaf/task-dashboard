@@ -1,6 +1,14 @@
 /**
  * Doble chequeo de sincronía web ↔ Telegram.
  *
+ *   node scripts/verify-sync.mjs                 # contra producción
+ *   BASE=http://localhost:3000 node scripts/verify-sync.mjs
+ *
+ * Corre contra la base real, así que vale la pena decir qué NO hace: las cuentas
+ * de personas de verdad solo se leen. Todo lo que escribe va a una cuenta
+ * desechable que crea y borra, y al final compara los totales de la base con los
+ * de antes de empezar.
+ *
  * Usa una cuenta desechable con un chat id ficticio y escribe por UNA puerta,
  * leyendo por la OTRA. Al final la borra y compara el estado de la base con el
  * de antes. Las cuentas reales solo se leen, nunca se tocan.
@@ -79,7 +87,7 @@ check(webPrefs.briefMorning==="06:15","escritura parcial: el brief que puso la w
 check(webPrefs.tipoOptions.includes("Viajes"),"escritura parcial: las categorías sobrevivieron");
 
 console.log("\n── AISLAMIENTO ──");
-const otro=await send(`/api/tasks/${target.rowId}`,{Authorization:`Bearer ${SECRET}`,"X-Telegram-Chat-Id":"<owner-chat-id>","Content-Type":"application/json"},"PATCH",{toDo:"secuestrada"});
+const otro=await send(`/api/tasks/${target.rowId}`,{Authorization:`Bearer ${SECRET}`,"X-Telegram-Chat-Id":"<owner-chat-id>","Content-Type":"application/json"},"PATCH",{patch:{toDo:"secuestrada"}});
 check(otro.status===404,"otro chat no puede tocar esta tarea", `HTTP ${otro.status}`);
 const sigue=((await get("/api/tasks",WEB)).tasks||[]).find(t=>t.rowId===target.rowId);
 check(sigue?.toDo==="creada en la WEB","...y el título quedó intacto", sigue?.toDo);
