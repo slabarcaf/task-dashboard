@@ -55,7 +55,7 @@ const MONTHS: Record<string, number> = {
  * "mañana", el título queda con un "con vencimiento," colgando — enseñamos una
  * forma de hablar y después no la entendíamos entera.
  */
-const DUE_LEAD_IN = /\s*(?:,\s*)?\b(?:con\s+vencimiento(?:\s+el)?|vence\s+(?:el|la)?|fecha\s+de\s+vencimiento(?:\s+el)?|para\s+el|due(?:\s+(?:on|by))?)\s*$/i;
+const DUE_LEAD_IN = /\s*(?:,\s*)?\b(?:con\s+vencimiento(?:\s+el)?|vence\s+(?:el|la)?|fecha\s+de\s+vencimiento(?:\s+el)?|para(?:\s+el)?|due(?:\s+(?:on|by))?)\s*$/i;
 
 function fold(value: string): string {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -167,8 +167,41 @@ function tidy(value: string): string {
     .replace(/\s+([,.;:])/g, "$1")
     .replace(/,\s*([,.;:])/g, "$1")
     .replace(/^[\s,;:.]+/, "")
-    .replace(/[\s,;:]+$/, "")
+    // También el punto final. Whisper termina toda transcripción con uno, así
+    // que sin esto una tarea dictada queda con punto y una escrita a mano no —
+    // la misma tarea se ve distinta según por dónde entró.
+    .replace(/[\s,;:.]+$/, "")
     .trim();
+}
+
+/**
+ * Igual que una letra, pero tolerando su versión con tilde.
+ *
+ * Hace falta porque el texto **no se puede normalizar antes de buscar**: quitarle
+ * los acentos le cambia la longitud, y entonces los índices que devuelve el match
+ * ya no sirven para recortar la frase. Así la comparación es flexible y las
+ * posiciones siguen siendo las del texto original.
+ */
+const ACCENT_CLASSES: Record<string, string> = {
+  a: "[a\u00e1\u00e0\u00e4\u00e2]",
+  e: "[e\u00e9\u00e8\u00eb\u00ea]",
+  i: "[i\u00ed\u00ec\u00ef\u00ee]",
+  o: "[o\u00f3\u00f2\u00f6\u00f4]",
+  u: "[u\u00fa\u00f9\u00fc\u00fb]",
+  n: "[n\u00f1]",
+  c: "[c\u00e7]"
+};
+
+function accentInsensitive(name: string): string {
+  return name
+    .split("")
+    .map((char) => {
+      if (/\s/.test(char)) return "\\s+";
+      const base = fold(char);
+      if (ACCENT_CLASSES[base]) return ACCENT_CLASSES[base];
+      return char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    })
+    .join("");
 }
 
 /**
@@ -180,26 +213,39 @@ function tidy(value: string): string {
  * buscar. Igual que con las fechas, un parser que adivina es peor que uno que se
  * abstiene.
  *
- * Y solo reconoce categorías que esa persona ya tiene. Inventar una desde una
- * frase dictada es cómo se llena la base de vocabulario que nadie eligió.
+ * ⚠️ El nombre se busca contra **la lista de esa persona**, y la frase puede ir
+ * en cualquier parte. La primera versión la anclaba al final con `$` y fallaba
+ * en "en categoría otros, para mañana" — que es exactamente como habla alguien
+ * dictando: la categoría en el medio y la fecha después.
  */
 export function parseCategoryIn(
   raw: string,
   categories: string[]
 ): { tipo: string | null; matchedText: string | null; rest: string } {
   const text = String(raw || "");
-  const match = text.match(
-    /\s*(?:,\s*)?\b(?:en\s+(?:la\s+)?)?categor[ií]a\s*:?\s*([\p{L}\d][\p{L}\d\s.&-]*?)\s*$/iu
-  );
-  if (!match) return { tipo: null, matchedText: null, rest: text };
+  const usable = categories.map((value) => String(value || "").trim()).filter(Boolean);
+  if (!text.trim() || usable.length === 0) return { tipo: null, matchedText: null, rest: text };
 
-  const spoken = fold(match[1].replace(/[.,;:]+$/, ""));
-  const hit = categories.find((category) => fold(category) === spoken);
+  // Más largas primero: si existieran "Golf" y "Golf club", gana la específica.
+  const alternation = [...usable]
+    .sort((a, b) => b.length - a.length)
+    .map(accentInsensitive)
+    .join("|");
+
+  const pattern = new RegExp(
+    `(?:,\\s*)?\\b(?:en\\s+(?:la\\s+)?)?categor[i\u00ed]a\\s*:?\\s*(${alternation})\\b`,
+    "iu"
+  );
+  const match = text.match(pattern);
+  if (!match || match.index === undefined) return { tipo: null, matchedText: null, rest: text };
+
+  const spoken = fold(match[1]);
+  const hit = usable.find((category) => fold(category) === spoken);
   if (!hit) return { tipo: null, matchedText: null, rest: text };
 
   return {
     tipo: hit,
-    matchedText: match[0].trim().replace(/[.,;:]+$/, ""),
-    rest: tidy(text.slice(0, match.index))
+    matchedText: match[0].trim().replace(/^[,\s]+/, ""),
+    rest: tidy(text.slice(0, match.index) + text.slice(match.index + match[0].length))
   };
 }

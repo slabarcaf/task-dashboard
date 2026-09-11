@@ -152,7 +152,7 @@ export function TaskCard({
       {/* Absolutely positioned, not a flex sibling. In the flow these four
           buttons reserved ~120px of every card even at zero opacity, which in a
           258px board column left the title breaking one word per line. */}
-      <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field bg-surface/95 opacity-0 shadow-card backdrop-blur-[2px] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field border border-line bg-surface opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <CardAction label="Editar" onClick={() => onEdit(task)}>✎</CardAction>
         <CardAction label="Mover a mañana" onClick={() => onMoveTomorrow(task)}>→</CardAction>
         <CardAction
@@ -208,7 +208,11 @@ function CardAction({
       aria-label={label}
       aria-pressed={pressed}
       onClick={onClick}
-      className="grid h-[29px] w-[29px] place-items-center rounded-field text-[13.5px] text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:bg-raised focus-visible:text-ink focus-visible:outline-none"
+      // `text-ink-2`, no `ink-3`. Los glifos ✎ y → se dibujan con el color del
+      // texto, mientras que 🔥 y 🗑 son emoji y traen el suyo: en terciario los
+      // dos primeros quedaban casi invisibles al lado de los otros dos, y solo
+      // aparecían al pasar el cursor por encima de cada uno.
+      className="grid h-[29px] w-[29px] place-items-center rounded-field text-[15px] font-semibold leading-none text-ink-2 transition-colors hover:bg-raised hover:text-ink focus-visible:bg-raised focus-visible:text-ink focus-visible:outline-none"
     >
       {children}
     </button>

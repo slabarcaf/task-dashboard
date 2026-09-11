@@ -208,13 +208,13 @@ function DebtRow({
         </span>
       </div>
 
-      <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field bg-surface/95 opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field border border-line bg-surface opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <button
           type="button"
           title="Eliminar"
           aria-label="Eliminar"
           onClick={() => onDelete(debt)}
-          className="grid h-[29px] w-[29px] place-items-center rounded-field text-[13.5px] text-ink-3 transition-colors hover:bg-raised hover:text-ink"
+          className="grid h-[29px] w-[29px] place-items-center rounded-field text-[15px] leading-none text-ink-2 transition-colors hover:bg-raised hover:text-ink"
         >
           🗑
         </button>

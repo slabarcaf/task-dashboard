@@ -1,41 +1,25 @@
 /**
- * Tests for the quick-capture date parser.
+ * Tests for the quick-capture parser.
  *
- * The source is TypeScript and this repo has no test-time transpiler, so the
- * file is stripped of its type syntax and evaluated. That sounds fragile, but
- * the alternative — adding ts-node or vitest and a config — is a lot of weight
- * for one pure function. If this ever breaks, the fix is a real test runner,
- * not a cleverer strip.
+ * The source is TypeScript and Next compiles it, not us — so the test compiles
+ * it too, with esbuild, instead of deleting type annotations by regex.
+ *
+ * It used to do exactly that, and the comment here predicted how it would end:
+ * "if this ever breaks, the fix is a real test runner, not a cleverer strip."
+ * It broke on `Record<string, string>` — the strip list happened to cover
+ * `Record<string, number>` and nothing else. So: a real transform. The only
+ * thing still hand-held is the `@/lib/date` import, which Node cannot resolve on
+ * its own; its one function is provided below.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformSync } from "esbuild";
 
-const src = readFileSync(new URL("../src/lib/parseTaskInput.ts", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/lib/parseTaskInput.ts", import.meta.url), "utf8");
 
-const stripped = src
-  .replace(/^import[\s\S]*?;\s*$/m, "")
-  .replace(/^export type[\s\S]*?^};\s*$/m, "")
-  .replace(/\bexport /g, "")
-  .replace(/: ParsedTaskInput\b/g, "")
-  .replace(/ as ParsedTaskInput\b/g, "")
-  .replace(/: Array<\{[\s\S]*?\}>/g, "")
-  .replace(/: Record<string, number>/g, "")
-  .replace(/: RegExpMatchArray/g, "")
-  .replace(/\(([a-zA-Z]+): string\)/g, "($1)")
-  .replace(/\(([a-zA-Z]+): string, ([a-zA-Z]+): number\)/g, "($1, $2)")
-  .replace(/\(todayIso: string, day: number, month: number\)/g, "(todayIso, day, month)")
-  .replace(/\(todayIso: string, weekday: number\)/g, "(todayIso, weekday)")
-  .replace(/\(\s*raw: string,\s*todayIso: string,\s*categories: string\[\] = \[\]\s*\)/g, "(raw, todayIso, categories = [])")
-  .replace(/\(\s*raw: string,\s*categories: string\[\]\s*\)/g, "(raw, categories)")
-  .replace(/\(raw: string, todayIso: string\)/g, "(raw, todayIso)")
-  .replace(/: \{ tipo: string \| null; matchedText: string \| null; rest: string \}/g, "")
-  .replace(/: ParsedTaskInput\b/g, "")
-  .replace(/\): string \| null/g, ")")
-  .replace(/\): number/g, ")")
-  .replace(/\): string/g, ")");
-
-// addDaysToIsoDate is the only import; reimplemented here rather than pulled in.
+// El único import del módulo. Se reimplementa aquí en vez de resolver el alias
+// `@/`, que necesitaría un cargador entero para una función de cuatro líneas.
 const prelude = `
 function addDaysToIsoDate(iso, days) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -46,13 +30,24 @@ function addDaysToIsoDate(iso, days) {
 }
 `;
 
-const parseTaskInput = new Function(`${prelude}${stripped}; return parseTaskInput;`)();
+const compiled = transformSync(source.replace(/^import[\s\S]*?;\s*$/m, ""), {
+  loader: "ts",
+  format: "cjs",
+  target: "node20"
+}).code;
 
-// Las categorías que tiene el usuario de las pruebas.
-const CATS = ["Ayudantias", "Finanzas", "Otros", "Personal", "Golf club"];
+// esbuild en cjs hace `module.exports = __toCommonJS(...)`, o sea **reemplaza**
+// el objeto en vez de mutarlo. Por eso se lee de `module.exports` al final y no
+// del `exports` que se pasó.
+const moduleShim = { exports: {} };
+new Function("exports", "module", prelude + compiled)(moduleShim.exports, moduleShim);
+const { parseTaskInput, parseCategoryIn } = moduleShim.exports;
 
 // A Thursday, so weekday arithmetic has a fixed reference.
 const TODAY = "2026-09-03";
+
+/** Las categorías del usuario de prueba. Nada fuera de esta lista debe matchear. */
+const CATS = ["Ayudantias", "Finanzas", "Otros", "Personal", "Golf club"];
 
 const cases = [
   ["pagar la luz el viernes", "pagar la luz", "2026-09-04"],
