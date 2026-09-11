@@ -3,6 +3,54 @@
 Mobile-responsive task dashboard backed by Postgres. It is also the API behind the Sydney Telegram
 assistant (`melissa-bot`), which authenticates with `OPENCLAW_API_SECRET`.
 
+## ⚠️ Pendiente importante: mover esto a la cuenta personal
+
+**Vercel, Neon y el cliente OAuth de Google están los tres en la cuenta de Berkeley**
+(`santiago.labarca@berkeley.edu`). El repositorio está en la personal (`slabarcaf` en GitHub).
+
+Esto no es desorden: es un riesgo con fecha. Es una cuenta universitaria. **El día que se desactive,
+el producto pierde a la vez dónde vive, dónde guarda los datos y cómo entra la gente.** No hay copia
+de seguridad de eso: no se puede "recuperar" un proyecto de Vercel ni una base de Neon desde una
+cuenta a la que ya no entras.
+
+Mover cada servicio es barato hoy y caro o imposible después. Hazlo **uno a la vez, nunca en la misma
+sesión que una función nueva**, y verificando entre uno y otro.
+
+### 1. Vercel — el proyecto
+
+*Settings → Advanced → Transfer Project*, desde la cuenta de Berkeley hacia la personal. Vercel
+muestra una vista previa de lo que se lleva antes de ejecutar.
+
+| Se transfiere | No se transfiere |
+|---|---|
+| Los dominios (quedan delegados a la cuenta destino) | Las **integraciones**: hay que volver a conectarlas |
+| Las variables de entorno del panel (la vista previa las lista) | Lo definido en `env`/`build.env` de `vercel.json` — aquí no se usa |
+
+**Después de transferir, comprueba en este orden:** que `/admin` → *Integraciones* siga en verde (si
+no, faltan variables), que un push a `main` dispare un build, y que el dominio siga respondiendo.
+
+### 2. Neon — la base de datos
+
+Es la más delicada porque tiene los datos. La ruta segura no es "transferir" sino **crear el proyecto
+en la cuenta personal, volcar y restaurar con `pg_dump`/`pg_restore`, apuntar `DATABASE_URL` al nuevo
+host y recién entonces borrar el viejo**. Guarda el volcado antes de tocar nada.
+
+Ojo con dos cosas: el bot en la VM habla con Postgres **a través de la API**, no directo, así que solo
+hay un `DATABASE_URL` que cambiar — el de Vercel. Y el `host` viejo aparece en el mapa de cuentas de
+`melissa-bot/README.md`, actualízalo.
+
+### 3. Google Cloud — el cliente OAuth
+
+El más visible para los usuarios: **cambiar de cliente invalida las sesiones**, porque `google_sub`
+identifica a cada persona y es distinto entre clientes. Todos tendrían que volver a entrar, y peor,
+`upsertGoogleUser` los reconocería por correo pero les escribiría un `google_sub` nuevo.
+
+Antes de hacerlo, lee `upsertGoogleUser` en `src/lib/server/db.ts` y confirma el camino de "mismo
+correo, `google_sub` distinto". Es el único de los tres que puede dejar a alguien fuera de su cuenta.
+
+**Orden recomendado:** Vercel primero (reversible y sin datos), Neon después (con volcado),
+Google al final y con aviso previo a quien esté usando la app.
+
 ## Deploying
 
 Vercel builds every push to `main`. The project serves `task-dashboard-c7q2.vercel.app` and lives
@@ -151,8 +199,8 @@ These go in the **Berkeley** Vercel account's project (see the warning above).
 
 | Variable | Turns on | Without it |
 |---|---|---|
-| `OPENAI_API_KEY` | Voice notes on the web (Whisper, the same one the bot uses) | The mic returns 503 and the toast says the feature is not configured |
-| `RESEND_API_KEY` | The invitation email | The account is still created, and the admin screen hands over a message to send by hand |
+| `OPENAI_API_KEY` | Voice notes on the web (Whisper, the same one the bot uses) — **live and tested 2026-09-11**: audio in, "Pagar la luz el viernes" out, 2.3s | The mic returns 503 and the toast says the feature is not configured |
+| `RESEND_API_KEY` | The invitation email — **live and tested 2026-09-11** | The account is still created, and the admin screen hands over a message to send by hand |
 | `INVITE_FROM` | The sender address | Falls back to `onboarding@resend.dev`, which Resend allows without a verified domain |
 | `NEXT_PUBLIC_TELEGRAM_BOT` | The bot handle used in link/QR/invite URLs | Falls back to `Melizion_bot` |
 | `ADMIN_EMAILS` | Who sees `/admin`, comma-separated | Falls back to `DEFAULT_OWNER_EMAIL` |
