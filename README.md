@@ -157,6 +157,10 @@ These go in the **Berkeley** Vercel account's project (see the warning above).
 | `NEXT_PUBLIC_TELEGRAM_BOT` | The bot handle used in link/QR/invite URLs | Falls back to `Melizion_bot` |
 | `ADMIN_EMAILS` | Who sees `/admin`, comma-separated | Falls back to `DEFAULT_OWNER_EMAIL` |
 
+**The names are exact.** `OPENAI_API_KEY`, not `OPEN_AI_KEY`; `RESEND_API_KEY`, not `RESEND_KEY`.
+If a near-miss name is present, `/admin` names it and says what it should be — that mistake cost an
+hour once.
+
 **A variable does nothing until a new build.** After saving one, redeploy. And `/admin` shows an
 **Integraciones** block that says, in green or red, whether each key actually reached the running
 build — which is faster than guessing and is what finally located the wrong-project mistake.

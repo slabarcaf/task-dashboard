@@ -161,6 +161,8 @@ export type AdminUserRow = {
 export type Integrations = {
   voice: boolean;
   mail: boolean;
+  /** Variables presentes con un nombre parecido al que hace falta. */
+  misnamed: Array<{ found: string; shouldBe: string }>;
   mailFrom: string;
   telegramBot: string;
 };

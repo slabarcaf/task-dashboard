@@ -191,6 +191,20 @@ export default function AdminPage() {
             />
             <IntegrationChip on label={`Telegram: @${integrations.telegramBot}`} />
           </div>
+          {integrations.misnamed.length > 0 && (
+            <div className="mt-3 rounded-card border border-amber/30 bg-amber-soft p-3 text-[13px]">
+              <b className="text-ink">El nombre no coincide.</b> Están estas variables, pero con un
+              nombre que el código no busca:
+              <ul className="mt-1.5 space-y-1">
+                {integrations.misnamed.map((entry) => (
+                  <li key={entry.found} className="num">
+                    <code className="font-mono">{entry.found}</code> → debería llamarse{" "}
+                    <code className="font-mono text-ink">{entry.shouldBe}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="mt-3 text-[12.5px] text-ink-3">
             Una variable agregada en Vercel solo aplica en un build nuevo. Si acabas de ponerla y
             aquí sigue en rojo, falta el redeploy — o está en otro proyecto.

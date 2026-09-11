@@ -41,6 +41,11 @@ export async function GET() {
     integrations: {
       voice: Boolean(process.env.OPENAI_API_KEY),
       mail: Boolean(process.env.RESEND_API_KEY),
+      // Los nombres que la gente pone cuando quiso poner el correcto. Decir
+      // "falta OPENAI_API_KEY" mientras existe un OPEN_AI_KEY a un metro es
+      // exactamente el error que costó una hora el 2026-09-11: el panel tiene
+      // que nombrar la variable que SÍ está, no solo la que falta.
+      misnamed: nearMisses(),
       mailFrom: process.env.INVITE_FROM || "onboarding@resend.dev",
       telegramBot: (process.env.NEXT_PUBLIC_TELEGRAM_BOT || "Melizion_bot").replace(/^@/, "")
     }
@@ -114,4 +119,29 @@ export async function POST(request: NextRequest) {
       ? { sent: true as const }
       : { sent: false as const, reason: mail.reason, appUrl: origin, telegramLink }
   });
+}
+
+/**
+ * Variables presentes cuyo nombre se parece al que hace falta.
+ *
+ * Solo nombres, nunca valores. Un `OPEN_AI_KEY` junto a un "falta
+ * OPENAI_API_KEY" no es un misterio que resolver, es un tipo que corregir — y el
+ * panel debería decirlo en vez de dejar a alguien mirando dos pantallas.
+ */
+function nearMisses(): Array<{ found: string; shouldBe: string }> {
+  const expected: Record<string, string[]> = {
+    OPENAI_API_KEY: ["OPEN_AI_KEY", "OPENAI_KEY", "OPENAI_APIKEY", "OPEN_AI_API_KEY", "OPENAI"],
+    RESEND_API_KEY: ["RESEND_KEY", "RESEND_APIKEY", "RESEND", "RESEND_TOKEN"],
+    NEXT_PUBLIC_TELEGRAM_BOT: ["TELEGRAM_BOT", "TELEGRAM_BOT_USERNAME"],
+    ADMIN_EMAILS: ["ADMIN_EMAIL"]
+  };
+
+  const found: Array<{ found: string; shouldBe: string }> = [];
+  for (const [canonical, aliases] of Object.entries(expected)) {
+    if (process.env[canonical]) continue;
+    for (const alias of aliases) {
+      if (process.env[alias]) found.push({ found: alias, shouldBe: canonical });
+    }
+  }
+  return found;
 }
