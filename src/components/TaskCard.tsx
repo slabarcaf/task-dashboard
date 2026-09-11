@@ -3,7 +3,7 @@
 import { AppLanguage, categoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/cn";
 import { categoryHue } from "@/lib/categoryColor";
-import { daysBetweenIsoDates, formatShortDate, relativeDueLabel } from "@/lib/date";
+import { addDaysToIsoDate, daysBetweenIsoDates, formatShortDate, relativeDueLabel } from "@/lib/date";
 import { normalizeStatus } from "@/lib/taskFilters";
 import { Task } from "@/lib/types";
 
@@ -46,6 +46,11 @@ export function TaskCard({
 }: TaskCardProps) {
   const isDone = normalizeStatus(task.statusFinalOutcome) === "Done";
   const isOverdue = Boolean(task.dueDateNextStep && task.dueDateNextStep < today && !isDone);
+  // "Mover a mañana" pone la fecha en mañana, no la corre un día. Sobre una tarea
+  // que ya vence mañana no hace nada — pero disparaba el PATCH igual y mostraba
+  // un toast diciendo "Movida a mañana" con su "Deshacer", que es la interfaz
+  // afirmando un cambio que no ocurrió. Es más barato no ofrecer el botón.
+  const alreadyTomorrow = task.dueDateNextStep === addDaysToIsoDate(today, 1);
   // "Hoy" says everything; "5-Sep · Hoy" says it twice. Anything further out
   // needs the date, and the relative part only earns its place as a nudge.
   const dueText = dueLabel(task.dueDateNextStep, today, language);
@@ -154,7 +159,9 @@ export function TaskCard({
           258px board column left the title breaking one word per line. */}
       <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field border border-line bg-surface opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <CardAction label="Editar" onClick={() => onEdit(task)}>✎</CardAction>
-        <CardAction label="Mover a mañana" onClick={() => onMoveTomorrow(task)}>→</CardAction>
+        {!alreadyTomorrow && (
+          <CardAction label="Mover a mañana" onClick={() => onMoveTomorrow(task)}>→</CardAction>
+        )}
         <CardAction
           label={task.isPriority ? "Quitar prioridad" : "Marcar prioridad"}
           pressed={task.isPriority}

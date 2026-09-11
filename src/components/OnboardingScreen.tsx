@@ -500,7 +500,9 @@ export function OnboardingScreen({
                   language={language}
                   onToggleDone={() => setPreviewDone((current) => !current)}
                   onEdit={() => taskInputRef.current?.focus()}
-                  onMoveTomorrow={() => setDueOverride(addDaysToIsoDate(effectiveDue, 1))}
+                  // Mañana, no "un día más": es lo que hace el botón de verdad,
+                  // y una demostración que enseña otra cosa enseña mal.
+                  onMoveTomorrow={() => setDueOverride(addDaysToIsoDate(today, 1))}
                   onTogglePriority={() => setPreviewPriority((current) => !current)}
                   onDelete={() => {
                     setTaskText("");
