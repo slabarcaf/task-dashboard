@@ -31,7 +31,20 @@ export async function GET() {
     ...row,
     isAdminAccount: isAdminUser(row)
   }));
-  return NextResponse.json({ ok: true, users, viewerId: user.id });
+  return NextResponse.json({
+    ok: true,
+    users,
+    viewerId: user.id,
+    // Solo si la variable existe, nunca su valor. Sirve para responder "¿por qué
+    // no funciona la voz?" sin abrir el panel de Vercel ni adivinar — que es
+    // justo lo que costó media hora la primera vez.
+    integrations: {
+      voice: Boolean(process.env.OPENAI_API_KEY),
+      mail: Boolean(process.env.RESEND_API_KEY),
+      mailFrom: process.env.INVITE_FROM || "onboarding@resend.dev",
+      telegramBot: (process.env.NEXT_PUBLIC_TELEGRAM_BOT || "Melizion_bot").replace(/^@/, "")
+    }
+  });
 }
 
 /**

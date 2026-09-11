@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Wordmark } from "@/components/SignInScreen";
 import {
   AdminUserRow,
+  Integrations,
   createAdminUser,
   deleteAdminUser,
   getCurrentUser,
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [integrations, setIntegrations] = useState<Integrations | null>(null);
   const [invite, setInvite] = useState<
     {
       to: string;
@@ -49,8 +51,9 @@ export default function AdminPage() {
         setState("signed_out");
         return;
       }
-      const { users: rows } = await listAdminUsers();
+      const { users: rows, integrations: found } = await listAdminUsers();
       setUsers(rows);
+      setIntegrations(found);
       setState("ready");
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "No se pudo cargar.";
@@ -166,6 +169,33 @@ export default function AdminPage() {
         <p className="mb-5 rounded-card border border-line bg-raised px-4 py-3 text-sm text-ink-2">
           {error}
         </p>
+      )}
+
+      {integrations && (
+        <section className="mb-4 rounded-panel border border-line bg-surface p-4 shadow-card">
+          <h2 className="mb-3 font-display text-[15px] font-semibold text-ink">Integraciones</h2>
+          <div className="flex flex-wrap gap-2">
+            <IntegrationChip
+              on={integrations.voice}
+              label="Notas de voz"
+              hint={integrations.voice ? "OPENAI_API_KEY puesta" : "falta OPENAI_API_KEY en Vercel"}
+            />
+            <IntegrationChip
+              on={integrations.mail}
+              label="Invitaciones por correo"
+              hint={
+                integrations.mail
+                  ? `enviando desde ${integrations.mailFrom}`
+                  : "falta RESEND_API_KEY en Vercel"
+              }
+            />
+            <IntegrationChip on label={`Telegram: @${integrations.telegramBot}`} />
+          </div>
+          <p className="mt-3 text-[12.5px] text-ink-3">
+            Una variable agregada en Vercel solo aplica en un build nuevo. Si acabas de ponerla y
+            aquí sigue en rojo, falta el redeploy — o está en otro proyecto.
+          </p>
+        </section>
       )}
 
       {/* ── Agregar cuenta ────────────────────────────────────────────────
@@ -438,6 +468,21 @@ function Stat({ label, value, hint }: { label: string; value: number | string; h
       <div className="mt-0.5 text-[12px] uppercase tracking-wide text-ink-3">{label}</div>
       {hint && <div className="num mt-0.5 text-[12px] text-ink-3">{hint}</div>}
     </div>
+  );
+}
+
+function IntegrationChip({ on, label, hint }: { on: boolean; label: string; hint?: string }) {
+  return (
+    <span
+      title={hint}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-chip border px-3 py-1 text-[12.5px] font-semibold",
+        on ? "border-ok/30 bg-ok-soft text-ok" : "border-late/30 bg-late-soft text-late"
+      )}
+    >
+      {on ? "✓" : "✕"} {label}
+      {hint && <span className="font-normal opacity-70">— {hint}</span>}
+    </span>
   );
 }
 

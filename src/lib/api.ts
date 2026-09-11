@@ -158,10 +158,24 @@ export type AdminUserRow = {
   isAdminAccount: boolean;
 };
 
-export async function listAdminUsers(): Promise<{ users: AdminUserRow[]; viewerId: number }> {
+export type Integrations = {
+  voice: boolean;
+  mail: boolean;
+  mailFrom: string;
+  telegramBot: string;
+};
+
+export async function listAdminUsers(): Promise<{
+  users: AdminUserRow[];
+  viewerId: number;
+  integrations: Integrations;
+}> {
   const response = await fetch("/api/admin/users", { method: "GET", cache: "no-store" });
-  const data = await parseJsonOrThrow<{ users: AdminUserRow[]; viewerId: number }>(response);
-  return { users: data.users, viewerId: data.viewerId };
+  return parseJsonOrThrow<{
+    users: AdminUserRow[];
+    viewerId: number;
+    integrations: Integrations;
+  }>(response);
 }
 
 export async function runAdminUserAction(
