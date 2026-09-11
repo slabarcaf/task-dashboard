@@ -225,6 +225,11 @@ export default function HomePage() {
         });
         setUserTipoOptions(preferences.tipoOptions);
         setNeedsOnboarding(false);
+        // A la lista y no al tablero, solo esta vez. Con una sola tarea el
+        // tablero son cuatro columnas vacías y la tarea que la persona acaba de
+        // escribir queda fuera de pantalla a la derecha — un final flojo para un
+        // onboarding cuyo punto era justamente que esa tarea es real.
+        setView("today");
         pushToast("Listo");
       } catch (onboardingError) {
         setError(
