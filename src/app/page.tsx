@@ -203,18 +203,29 @@ export default function HomePage() {
       setError(null);
       try {
         if (answers.firstTask) {
+          // Lo que hizo con la tarjeta de ejemplo va en la tarea real: si prendió
+          // la llama o la movió a mañana, eso es lo que quiso, no un ensayo.
           const payload: AddTaskPayload = {
             toDo: answers.firstTask.title,
-            statusFinalOutcome: "To-do",
+            statusFinalOutcome: answers.firstTask.done ? "Done" : "To-do",
             tipo: answers.firstTask.tipo,
             nextStep: "",
             dueDateNextStep: answers.firstTask.dueDate,
             statusNextStep: "",
             recurrenceInterval: null,
-            recurrenceUnit: null
+            recurrenceUnit: null,
+            isPriority: answers.firstTask.isPriority
           };
           const created = await addTask(payload);
           setTasks((current) => [taskFromPayload(created.rowId, payload), ...current]);
+        }
+
+        // La deuda va antes de las preferencias por la misma razón que la tarea:
+        // `updatePreferences` es lo que marca el onboarding como terminado, así
+        // que cualquier cosa que la persona escribió tiene que estar guardada ya.
+        if (answers.firstDebt) {
+          const debt = await addDebt(answers.firstDebt);
+          setDebts((current) => [debt, ...current]);
         }
 
         const preferences = await updatePreferences({
@@ -621,6 +632,8 @@ export default function HomePage() {
         initialSelection={userTipoOptions}
         isSaving={isSavingOnboarding}
         error={error}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onComplete={(answers) => void completeOnboarding(answers)}
       />
     );
