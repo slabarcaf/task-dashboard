@@ -128,3 +128,31 @@ while you are typing.
 `/ui-lab` renders the presentational components against fixed rows — no database, no session, no
 API. It exists because the signed-in surface can only be reached with a Google account, which makes
 redesigning it hard to verify. Deleting it costs the app no behaviour.
+
+## Optional keys
+
+Two features are built and degrade honestly when their key is missing — the UI
+says what is absent rather than reporting a failure or, worse, a false success.
+
+| Variable | Turns on | Without it |
+|---|---|---|
+| `OPENAI_API_KEY` | Voice notes on the web (Whisper, the same one the bot uses) | The mic returns 503 and the toast says the feature is not configured |
+| `RESEND_API_KEY` | The invitation email | The account is still created, and the admin screen hands over a message to send by hand |
+| `INVITE_FROM` | The sender address | Falls back to `onboarding@resend.dev`, which Resend allows without a verified domain |
+| `NEXT_PUBLIC_TELEGRAM_BOT` | The bot handle used in link/QR/invite URLs | Falls back to `Melizion_bot` |
+| `ADMIN_EMAILS` | Who sees `/admin`, comma-separated | Falls back to `DEFAULT_OWNER_EMAIL` |
+
+## Voice notes
+
+Hold the mic in the capture bar to record, release to transcribe; a short tap
+latches recording open until the next tap, because holding a finger down for
+thirty seconds on a desktop is nobody's idea of a good time.
+
+**The transcript lands in the text field, never straight into a task.** Whisper
+mishears, and a task created silently from a misheard phrase is worse than
+having no voice at all — you find out the day the reminder does not come.
+
+The Whisper prompt is built per user in `src/lib/voicePrompt.ts`: generic task
+vocabulary (without it, "con vencimiento mañana" reliably becomes
+"Convencimiento mañana") plus that person's own category names. `melissa.js`
+mirrors the same rule, so a voice note transcribes identically on both sides.
