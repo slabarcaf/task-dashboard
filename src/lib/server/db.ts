@@ -18,7 +18,8 @@ type UserRow = {
   id: number;
   email: string;
   name: string;
-  telegram_chat_id?: string | null;
+  /** Toda consulta que arme un UserRow tiene que seleccionarlo. Ver `toUser`. */
+  telegram_chat_id: string | null;
 };
 
 type UserPreferencesRow = {
@@ -48,8 +49,8 @@ export type DbUser = {
   id: number;
   email: string;
   name: string;
-  /** Null when unlinked, undefined when the query did not select it. */
-  telegramChatId?: string | null;
+  /** Null cuando no hay Telegram vinculado. Nunca "no lo pregunté" — ver `toUser`. */
+  telegramChatId: string | null;
 };
 
 export type DbUserPreferences = {
@@ -115,8 +116,12 @@ function toUser(row: UserRow): DbUser {
     id: Number(row.id),
     email: row.email,
     name: row.name,
-    // Undefined when the query did not ask for it, which is why it is optional
-    // on DbUser: only the callers that select it can report on it.
+    // ⚠️ **Toda consulta que devuelva un UserRow tiene que seleccionar
+    // `telegram_chat_id`.** Esto era opcional, con un `?? null` que convertía
+    // "la consulta no lo pidió" en "no tiene Telegram" — indistinguibles, y por
+    // eso `getUserBySessionToken` reportó durante semanas que nadie tenía
+    // Telegram conectado: era la única de las nueve consultas que lo omitía.
+    // Un campo que no se preguntó no debe contestar que no.
     telegramChatId: row.telegram_chat_id ?? null
   };
 }
@@ -1010,7 +1015,7 @@ export async function getUserBySessionToken(token: string): Promise<DbUser | nul
   await initialize();
 
   const result = await getPool().query<UserRow>(
-    `SELECT u.id, u.email, u.name
+    `SELECT u.id, u.email, u.name, u.telegram_chat_id
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      WHERE s.token = $1

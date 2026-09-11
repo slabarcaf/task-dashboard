@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminUser } from "@/lib/server/admin";
 import {
   DbUser,
   createSession,
@@ -9,6 +10,31 @@ import {
   findUserByTelegramChatId,
   getUserBySessionToken
 } from "@/lib/server/db";
+
+/**
+ * La forma en que la sesión describe a su dueño. **Las dos rutas que entregan un
+ * usuario tienen que usar esta.**
+ *
+ * `/api/auth/google` y `/api/auth/me` construían cada una su propio objeto, y se
+ * separaron: la del ingreso devolvía solo id, correo y nombre. El efecto era que
+ * justo después de entrar la cabecera no mostraba "Usuarios" a un administrador
+ * —aparecía sola al volver de otra pantalla, cuando `/api/auth/me` corría— y el
+ * aviso de conectar Telegram salía aunque ya estuviera conectado.
+ *
+ * Dos lugares que arman el mismo objeto es cómo terminan discrepando, y el que
+ * discrepa es siempre el que se olvida de actualizar.
+ */
+export function toAuthUser(user: DbUser) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    // Solo informativo: decide si se dibuja un enlace, nunca lo que el servidor
+    // entrega. Cada ruta de /api/admin vuelve a comprobarlo.
+    isAdmin: isAdminUser(user),
+    telegramLinked: Boolean(user.telegramChatId)
+  };
+}
 
 export const SESSION_COOKIE_NAME = "taskdash_session";
 const SESSION_DAYS = 15;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUserSession, crossOriginRefused, originIsTrusted, setSessionCookie } from "@/lib/server/auth";
+import { createUserSession, crossOriginRefused, originIsTrusted, setSessionCookie, toAuthUser } from "@/lib/server/auth";
 import { verifyGoogleCredential } from "@/lib/server/google-auth";
 import { linkGoogleIdentity } from "@/lib/server/db";
 import { LIMITS, clientIp, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
@@ -52,10 +52,7 @@ export async function POST(request: NextRequest) {
 
     const session = await createUserSession(user.id);
 
-    const response = NextResponse.json({
-      ok: true,
-      user: { id: user.id, email: user.email, name: user.name }
-    });
+    const response = NextResponse.json({ ok: true, user: toAuthUser(user) });
 
     setSessionCookie(response, session.token, session.expiresAt);
     return response;

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromCookies } from "@/lib/server/auth";
-import { isAdminUser } from "@/lib/server/admin";
+import { getCurrentUserFromCookies, toAuthUser } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -10,16 +9,5 @@ export async function GET() {
     return NextResponse.json({ ok: false, user: null }, { status: 401 });
   }
 
-  return NextResponse.json({
-    ok: true,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      // Advisory only — it decides whether a link is drawn, never what the
-      // server will hand over. Every /api/admin route checks again.
-      isAdmin: isAdminUser(user),
-      telegramLinked: Boolean(user.telegramChatId)
-    }
-  });
+  return NextResponse.json({ ok: true, user: toAuthUser(user) });
 }
