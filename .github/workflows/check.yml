@@ -1,0 +1,31 @@
+# La primera automatización de este repo.
+#
+# Vercel construye cada push y eso typechequea el grafo de la app — pero NO corre
+# `npm test`, ni `npm run lint` como compuerta, ni `verify:sync`. Los tests
+# existen desde hace meses y nunca han bloqueado un despliegue.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # tsc + lint + tests. Es el mismo comando que CLAUDE.md pide correr a mano,
+      # y existe precisamente porque no toca `.next` — correr `next build` con el
+      # servidor de desarrollo arriba rompe todas las rutas.
+      - name: Typecheck, lint y pruebas
+        run: npm run check
