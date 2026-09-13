@@ -24,6 +24,8 @@ type UserRow = {
 
 type UserPreferencesRow = {
   onboarding_completed: boolean;
+  /** Cuándo un administrador reinició el onboarding. Null = nunca. */
+  onboarding_reset_at?: string | null;
   tipo_options: string[] | null;
   language: string | null;
   timezone: string | null;
@@ -315,6 +317,19 @@ async function initialize(): Promise<void> {
 
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
+
+      // Marca de que un administrador reinició el onboarding a propósito.
+      //
+      // Existe para que la reparación de `getUserPreferencesByUserId` sepa la
+      // diferencia entre "nunca hizo onboarding y tiene tareas migradas" —que es
+      // lo que esa reparación arregla— y "alguien apretó Repetir onboarding".
+      // Sin esta columna el botón era un no-op silencioso: ponía la bandera en
+      // FALSE y la primera lectura de preferencias la volvía a poner en TRUE,
+      // porque la persona tenía tareas. Justamente todos a quienes se les
+      // ofrecía el botón.
+      await pool.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_reset_at TIMESTAMPTZ`
+      );
 
       // Rate limiting lives in Postgres rather than in memory on purpose. Each
       // serverless instance has its own memory, so an in-memory counter is a
@@ -666,7 +681,7 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
 
   const result = await getPool().query<UserPreferencesRow>(
     `SELECT onboarding_completed, tipo_options, language, timezone,
-            brief_morning, brief_evening, category_keywords
+            brief_morning, brief_evening, category_keywords, onboarding_reset_at
      FROM users
      WHERE id = $1
      LIMIT 1`,
@@ -695,7 +710,12 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
     tipoOptions = await getDistinctTaskTiposByUser(userId);
   }
 
-  if (!onboardingCompleted) {
+  // ⚠️ La reparación NO se aplica si un administrador reinició el onboarding a
+  // propósito. Inferir "ya lo hizo" de que tenga tareas es correcto para una
+  // cuenta migrada, y es exactamente lo contrario de lo que se pidió cuando
+  // alguien apretó Repetir onboarding — quien lo reinicia lo hace *porque* la
+  // persona ya tiene tareas.
+  if (!onboardingCompleted && !row.onboarding_reset_at) {
     const existingTaskTipos = await getDistinctTaskTiposByUser(userId);
     if (existingTaskTipos.length > 0) {
       onboardingCompleted = true;
@@ -811,6 +831,10 @@ export async function saveUserPreferencesByUserId(
          brief_morning      = COALESCE($5::text, brief_morning),
          brief_evening      = COALESCE($6::text, brief_evening),
          category_keywords  = COALESCE($7::jsonb, category_keywords),
+         -- Terminar el onboarding cierra el reinicio. Si no, la columna pasaría
+         -- de significar "hay un reinicio pendiente" a "alguna vez lo reiniciaron",
+         -- que es una pregunta que nadie hace y una respuesta que confunde.
+         onboarding_reset_at = CASE WHEN $1::boolean THEN NULL ELSE onboarding_reset_at END,
          updated_at = NOW()
      WHERE id = $8
      RETURNING onboarding_completed, tipo_options, language, timezone,
@@ -1107,10 +1131,19 @@ export async function listAdminUserOverview(): Promise<AdminUserOverview[]> {
 }
 
 /** Sends the user back through onboarding the next time they open the app. */
+/**
+ * Vuelve a mostrarle el onboarding a alguien que ya lo hizo.
+ *
+ * Sus tareas, deudas y categorías **no se tocan** — solo se le vuelve a mostrar
+ * la pantalla. `onboarding_reset_at` es lo que impide que la reparación de
+ * `getUserPreferencesByUserId` deshaga esto en la siguiente lectura.
+ */
 export async function resetUserOnboarding(userId: number): Promise<boolean> {
   await initialize();
   const result = await getPool().query(
-    `UPDATE users SET onboarding_completed = FALSE, updated_at = NOW() WHERE id = $1`,
+    `UPDATE users
+     SET onboarding_completed = FALSE, onboarding_reset_at = NOW(), updated_at = NOW()
+     WHERE id = $1`,
     [userId]
   );
   return (result.rowCount || 0) > 0;

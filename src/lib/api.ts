@@ -256,7 +256,15 @@ export async function updatePreferences(patch: PreferencePatch): Promise<UserPre
 
 export type InviteOutcome =
   | { sent: true }
-  | { sent: false; reason: "not_configured" | "failed"; appUrl: string; telegramLink: string };
+  | {
+      sent: false;
+      /** `unverified_domain`: Resend anda, pero sin dominio propio solo entrega
+       *  a la dirección dueña de la cuenta. Parece una falla y no lo es. */
+      reason: "not_configured" | "unverified_domain" | "failed";
+      detail?: string;
+      appUrl: string;
+      telegramLink: string;
+    };
 
 export async function createAdminUser(email: string, name: string): Promise<InviteOutcome> {
   const response = await fetch("/api/admin/users", {

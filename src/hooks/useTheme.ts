@@ -5,15 +5,23 @@ import { useCallback, useEffect, useState } from "react";
 const STORAGE_KEY = "sydney-theme";
 
 /**
- * Light or dark, remembered on this device.
+ * Claro u oscuro, recordado en este dispositivo.
  *
- * Written to `data-theme` on <html>, which is what globals.css and Tailwind's
- * `dark:` variant both key off. localStorage can throw outright in a locked-down
- * browser, so every read and write is guarded and a failure just means the theme
- * does not persist — never a blank screen.
+ * Se escribe en `data-theme` del <html>, que es de donde leen tanto globals.css
+ * como la variante `dark:` de Tailwind. `localStorage` puede lanzar excepción en
+ * un navegador con el almacenamiento bloqueado, así que cada lectura y escritura
+ * va con `try`/`catch`: fallar ahí significa que el tema no se recuerda, nunca
+ * que la pantalla se rompe.
+ *
+ * **Oscuro por omisión desde 2026-09-13**, y deliberadamente *sin* consultar
+ * `prefers-color-scheme`. Consultarlo suena más educado, pero significaba que
+ * alguien con el sistema en claro —que es la mayoría— nunca veía el tema que
+ * este producto tiene por defecto. La elección guardada sigue ganando sobre todo.
  */
+export const DEFAULT_THEME: "light" | "dark" = "dark";
+
 export function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(DEFAULT_THEME);
 
   useEffect(() => {
     let stored: string | null = null;
@@ -22,12 +30,7 @@ export function useTheme() {
     } catch {
       stored = null;
     }
-    const initial =
-      stored === "dark" || stored === "light"
-        ? stored
-        : window.matchMedia?.("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
+    const initial = stored === "dark" || stored === "light" ? stored : DEFAULT_THEME;
     setTheme(initial);
     document.documentElement.dataset.theme = initial;
   }, []);

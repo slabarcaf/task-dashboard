@@ -22,6 +22,35 @@ import { AuthUser } from "@/lib/types";
  * "did the invite work?" without opening a database client. The three actions
  * are the ones that were only reachable as Telegram commands before.
  */
+/**
+ * El mensaje que se manda a mano cuando el correo no salió.
+ *
+ * La versión anterior decía "O directo al chat" — que no significa nada para
+ * alguien que no conoce el producto, y es exactamente la persona que recibe
+ * esto. Un enlace sin explicar qué hay del otro lado no se abre.
+ *
+ * Sin markdown ni viñetas raras a propósito: esto se pega tal cual en WhatsApp
+ * o en un correo, donde los asteriscos salen como asteriscos.
+ */
+function manualInvite(to: string, appUrl: string, telegramLink: string): string {
+  return [
+    "Te invité a Sydney: una lista de tareas a la que le escribes como a una persona.",
+    'Le dices "pagar la luz el viernes" y la anota con la fecha puesta.',
+    "",
+    "Son dos lados de la misma cuenta, y puedes empezar por cualquiera:",
+    "",
+    `1) La web, para ver y ordenar tus tareas. Entra con ${to}:`,
+    `   ${appUrl}`,
+    "",
+    "2) Telegram, que es donde Sydney te habla a ti: te manda un resumen en la",
+    "   mañana y otro en la noche, y le escribes —o le mandas un audio— desde el",
+    "   teléfono, sin abrir nada. Este enlace abre el chat y te deja dentro:",
+    `   ${telegramLink}`,
+    "",
+    "El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla."
+  ].join("\n");
+}
+
 export default function AdminPage() {
   const [viewer, setViewer] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
@@ -39,7 +68,8 @@ export default function AdminPage() {
       to: string;
       appUrl?: string;
       telegramLink?: string;
-      reason?: "not_configured" | "failed";
+      reason?: "not_configured" | "unverified_domain" | "failed";
+      detail?: string;
     } | null
   >(null);
 
@@ -233,7 +263,8 @@ export default function AdminPage() {
                     to,
                     appUrl: invite.appUrl,
                     telegramLink: invite.telegramLink,
-                    reason: invite.reason
+                    reason: invite.reason,
+                    detail: invite.detail
                   }
             );
             setNewEmail("");
@@ -285,21 +316,41 @@ export default function AdminPage() {
                   <b>
                     {invite.reason === "not_configured"
                       ? "no se envió correo"
-                      : "el correo no se pudo enviar"}
+                      : invite.reason === "unverified_domain"
+                        ? "Resend no lo dejó salir"
+                        : "el correo no se pudo enviar"}
                   </b>
                   . Mándale esto tú:
                 </p>
                 <textarea
                   readOnly
-                  rows={5}
+                  rows={12}
                   onFocus={(event) => event.currentTarget.select()}
-                  value={`Te invité a Sydney, una lista de tareas a la que le puedes escribir como a una persona.\n\nEn la web, con ${invite.to}: ${invite.appUrl}\nO directo al chat: ${invite.telegramLink}\n\nCualquiera de los dos te deja dentro, son la misma cuenta.`}
-                  className="mt-2 w-full resize-none rounded-field border border-line bg-surface px-3 py-2 text-[12.5px] text-ink-2 outline-none"
+                  value={manualInvite(invite.to, invite.appUrl, invite.telegramLink || "")}
+                  className="mt-2 w-full resize-none rounded-field border border-line bg-surface px-3 py-2 text-[12.5px] leading-relaxed text-ink-2 outline-none"
                 />
+
+                {/* Cada motivo tiene una acción distinta, así que cada uno la dice. */}
                 {invite.reason === "not_configured" && (
-                  <p className="mt-2 text-[12px] text-ink-3">
+                  <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
                     Para que salgan solas: crear una API key en resend.com y ponerla en Vercel como{" "}
                     <code className="font-mono">RESEND_API_KEY</code>.
+                  </p>
+                )}
+                {invite.reason === "unverified_domain" && (
+                  <div className="mt-2 rounded-card border border-amber/30 bg-amber-soft px-3 py-2.5 text-[12px] leading-relaxed text-amber-ink">
+                    <b>Resend funciona; lo que falta es un dominio.</b> Sin uno verificado solo deja
+                    enviar desde <code className="font-mono">onboarding@resend.dev</code>, y solo a
+                    la dirección dueña de la cuenta de Resend. A cualquier otra persona la rechaza.
+                    <br />
+                    Se arregla una vez: verificar un dominio en resend.com → Domains, y poner{" "}
+                    <code className="font-mono">INVITE_FROM</code> en Vercel con una dirección de
+                    ese dominio. Desde ahí las invitaciones salen solas.
+                  </div>
+                )}
+                {invite.reason === "failed" && invite.detail && (
+                  <p className="mt-2 break-words font-mono text-[11.5px] leading-relaxed text-ink-3">
+                    {invite.detail}
                   </p>
                 )}
               </>

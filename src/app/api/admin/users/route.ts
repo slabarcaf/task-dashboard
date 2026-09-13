@@ -123,7 +123,18 @@ export async function POST(request: NextRequest) {
     // afirma haber mandado y no mandó es peor que no tener invitaciones.
     invite: mail.sent
       ? { sent: true as const }
-      : { sent: false as const, reason: mail.reason, appUrl: origin, telegramLink }
+      : {
+          sent: false as const,
+          reason: mail.reason,
+          // El detalle de Resend viajaba solo al log del servidor, así que la
+          // pantalla decía "no se pudo enviar" y ahí terminaba la conversación.
+          // Esto no es un mensaje de excepción de la base: es la respuesta de un
+          // servicio de correo sobre un correo, y es justo lo que hay que leer
+          // para saber qué hacer.
+          detail: mail.detail,
+          appUrl: origin,
+          telegramLink
+        }
   });
 }
 
