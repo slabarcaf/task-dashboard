@@ -212,11 +212,16 @@ export default function AdminPage() {
             />
             <IntegrationChip
               on={integrations.mail}
+              // Sin dominio propio, Resend solo entrega a la dirección dueña de
+              // la cuenta. La llave está puesta y aun así nadie más recibe nada.
+              limited={integrations.mail && integrations.mailFrom.includes("resend.dev")}
               label="Invitaciones por correo"
               hint={
-                integrations.mail
-                  ? `enviando desde ${integrations.mailFrom}`
-                  : "falta RESEND_API_KEY en Vercel"
+                !integrations.mail
+                  ? "falta RESEND_API_KEY en Vercel"
+                  : integrations.mailFrom.includes("resend.dev")
+                    ? "solo llegan a tu propia dirección — falta verificar un dominio"
+                    : `enviando desde ${integrations.mailFrom}`
               }
             />
             <IntegrationChip on label={`Telegram: @${integrations.telegramBot}`} />
@@ -536,16 +541,40 @@ function Stat({ label, value, hint }: { label: string; value: number | string; h
   );
 }
 
-function IntegrationChip({ on, label, hint }: { on: boolean; label: string; hint?: string }) {
+/**
+ * Tres estados, no dos.
+ *
+ * `limited` existe porque el correo estaba en verde mientras no podía entregarle
+ * a nadie salvo al dueño de la cuenta de Resend: la llave estaba puesta, así que
+ * el chip decía que sí. Una luz verde que miente es peor que no tener luz — es
+ * la misma regla que el chequeo nocturno, donde no poder determinar la respuesta
+ * se reporta como falla y nunca como aprobación.
+ */
+function IntegrationChip({
+  on,
+  limited = false,
+  label,
+  hint
+}: {
+  on: boolean;
+  limited?: boolean;
+  label: string;
+  hint?: string;
+}) {
+  const tone = !on
+    ? "border-late/30 bg-late-soft text-late"
+    : limited
+      ? "border-amber/30 bg-amber-soft text-amber-ink"
+      : "border-ok/30 bg-ok-soft text-ok";
   return (
     <span
       title={hint}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-chip border px-3 py-1 text-[12.5px] font-semibold",
-        on ? "border-ok/30 bg-ok-soft text-ok" : "border-late/30 bg-late-soft text-late"
+        tone
       )}
     >
-      {on ? "✓" : "✕"} {label}
+      {!on ? "✕" : limited ? "!" : "✓"} {label}
       {hint && <span className="font-normal opacity-70">— {hint}</span>}
     </span>
   );
