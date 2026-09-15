@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, forwardRef, useMemo, useState } from "react";
-import { categoryLabel, AppLanguage } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { formatShortDate } from "@/lib/date";
 import { cn } from "@/lib/cn";
 import { parseTaskInput } from "@/lib/parseTaskInput";
@@ -9,7 +10,6 @@ import { VoiceButton } from "@/components/VoiceButton";
 
 type QuickCaptureProps = {
   today: string;
-  language: AppLanguage;
   categories: string[];
   defaultCategory: string;
   disabled?: boolean;
@@ -27,9 +27,11 @@ type QuickCaptureProps = {
  * web silently defaulting was how two vocabularies ended up in one database.
  */
 export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(function QuickCapture(
-  { today, language, categories, defaultCategory, disabled, onVoiceError, onAdd },
+  { today, categories, defaultCategory, disabled, onVoiceError, onAdd },
   ref
 ) {
+  const t = useT();
+  const language = useLanguage();
   const [text, setText] = useState("");
   const [manualTipo, setManualTipo] = useState(defaultCategory);
   const [busy, setBusy] = useState(false);
@@ -71,9 +73,9 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
         value={text}
         disabled={disabled || busy}
         onChange={(event) => setText(event.target.value)}
-        placeholder="Escribe una tarea… prueba “pagar la luz el viernes”"
+        placeholder={t.capture.placeholder}
         autoComplete="off"
-        aria-label="Nueva tarea"
+        aria-label={t.capture.taskLabel}
         className="min-w-[12rem] flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3"
       />
 
@@ -96,8 +98,15 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
       <select
         value={tipo}
         onChange={(event) => setManualTipo(event.target.value)}
-        aria-label="Categoría"
-        title={parsed.tipo ? `Leí “${parsed.tipoMatchedText}” en lo que escribiste` : undefined}
+        aria-label={t.capture.categoryLabel}
+        // Las dos condiciones, no solo `parsed.tipo`. El tipo destapó que
+        // `tipoMatchedText` puede ser null, y la plantilla que había antes lo
+        // habría dibujado como el texto “null”.
+        title={
+          parsed.tipo && parsed.tipoMatchedText
+            ? t.capture.readCategory(parsed.tipoMatchedText)
+            : undefined
+        }
         className={cn(
           "min-w-0 rounded-field border px-2 py-1 text-[12.5px] font-semibold outline-none",
           parsed.tipo
@@ -117,7 +126,7 @@ export const QuickCapture = forwardRef<HTMLInputElement, QuickCaptureProps>(func
         disabled={!parsed.title.trim() || busy || disabled}
         className="ml-auto rounded-field bg-brand px-3 py-1.5 text-[13px] font-semibold text-brand-ink transition-opacity disabled:cursor-not-allowed disabled:opacity-40 sm:ml-0"
       >
-        {busy ? "…" : "Agregar"}
+        {busy ? "…" : t.capture.add}
       </button>
     </form>
   );

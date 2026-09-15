@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { categoryLabel, AppLanguage } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/cn";
 import { formatShortDate } from "@/lib/date";
 import { getSuggestionScore, normalizeStatus, taskSearchText } from "@/lib/taskFilters";
@@ -19,7 +20,6 @@ type CommandPaletteProps = {
   onClose: () => void;
   tasks: Task[];
   today: string;
-  language: AppLanguage;
   commands: PaletteCommand[];
   onPickTask: (task: Task) => void;
 };
@@ -40,10 +40,11 @@ export function CommandPalette({
   onClose,
   tasks,
   today,
-  language,
   commands,
   onPickTask
 }: CommandPaletteProps) {
+  const t = useT();
+  const language = useLanguage();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -142,7 +143,7 @@ export function CommandPalette({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Buscar y ejecutar"
+        aria-label={t.palette.dialogLabel}
         onKeyDown={onKeyDown}
         className="h-fit w-full max-w-[560px] overflow-hidden rounded-panel border border-line-2 bg-surface shadow-float"
       >
@@ -154,7 +155,7 @@ export function CommandPalette({
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar una tarea o escribir un comando…"
+            placeholder={t.palette.placeholder}
             className="flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
           />
           <kbd className="rounded border border-line bg-sunken px-1.5 py-px text-[11px] font-semibold text-ink-3">
@@ -164,7 +165,7 @@ export function CommandPalette({
 
         <div className="max-h-[46vh] overflow-y-auto p-1.5">
           {rows.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-ink-3">Nada coincide.</p>
+            <p className="px-3 py-6 text-center text-sm text-ink-3">{t.palette.noMatches}</p>
           )}
           {rows.map((row, index) => (
             <button

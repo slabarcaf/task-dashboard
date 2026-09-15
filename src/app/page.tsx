@@ -17,6 +17,7 @@ import { Toast } from "@/components/ui/Toast";
 import { useTasks } from "@/hooks/useTasks";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
+import { useLanguage, useSetLanguage, useT } from "@/lib/i18n/provider";
 import {
   Debt,
   addDebt,
@@ -31,25 +32,9 @@ import {
   signInWithGoogle,
   updatePreferences
 } from "@/lib/api";
-import { AppLanguage } from "@/lib/categories";
 import { addDaysToIsoDate, endOfWeekIsoDate, todayIsoDate } from "@/lib/date";
 import { normalizeStatus, normalizeTipoOptions, taskFromPayload } from "@/lib/taskFilters";
 import { AddTaskPayload, AuthUser, Task, TaskPatch } from "@/lib/types";
-
-/**
- * The interface is in Spanish, full stop.
- *
- * This used to follow `navigator.language`, which produced something worse than
- * either language: every chrome string here is hardcoded Spanish, so an English
- * browser got "VENCIDAS / Esta semana" sitting above chips reading "Priority"
- * and "Other". Half a translation is not a translation.
- *
- * `categoryLabel` still takes a language and still translates, so the moment the
- * chrome strings are extracted this becomes a real preference instead of a
- * constant. Category identifiers are Spanish in the database either way — only
- * the label ever changes.
- */
-const UI_LANGUAGE: AppLanguage = "es";
 
 export default function HomePage() {
   const router = useRouter();
@@ -76,6 +61,9 @@ export default function HomePage() {
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  const t = useT();
+  const language = useLanguage();
+  const setLanguage = useSetLanguage();
   const { theme, toggleTheme } = useTheme();
   const { toast, pushToast, pushUndoToast } = useToast();
   const dropSession = useCallback(() => setCurrentUser(null), []);
@@ -119,7 +107,7 @@ export default function HomePage() {
     async (response: { credential?: string }) => {
       const credential = String(response.credential || "");
       if (!credential) {
-        setError("Google no devolvió una credencial.");
+        setError(t.errors.noCredential);
         return;
       }
       setIsSigningIn(true);
@@ -127,12 +115,12 @@ export default function HomePage() {
       try {
         setCurrentUser(await signInWithGoogle(credential));
       } catch (signInError) {
-        setError(signInError instanceof Error ? signInError.message : "No se pudo entrar.");
+        setError(signInError instanceof Error ? signInError.message : t.errors.signIn);
       } finally {
         setIsSigningIn(false);
       }
     },
-    []
+    [t]
   );
 
   const handleLogout = useCallback(async () => {
@@ -156,16 +144,27 @@ export default function HomePage() {
       const options = normalizeTipoOptions(preferences.tipoOptions);
       setUserTipoOptions(options);
       setNeedsOnboarding(!preferences.onboardingCompleted);
+
+      // La cuenta manda sobre el dispositivo: es la misma preferencia que lee el
+      // bot, y un clic anterior a la sesión no debe reescribirla. El desacuerdo
+      // dura un render y después la cookie queda corregida.
+      //
+      // ⚠️ Salvo si el onboarding no está hecho. Una fila sin onboarding tiene
+      // el idioma por omisión de la columna, que no es una preferencia
+      // declarada: sin esta excepción, alguien que elige English en la puerta
+      // hace todo el onboarding en español. Ahí manda el dispositivo, y
+      // `completeOnboarding` lo guarda en la cuenta.
+      if (preferences.onboardingCompleted) setLanguage(preferences.language);
     } catch (preferencesError) {
       setError(
         preferencesError instanceof Error
           ? preferencesError.message
-          : "No se pudieron cargar tus preferencias."
+          : t.errors.preferences
       );
     } finally {
       setIsPreferencesLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, setLanguage, t]);
 
   useEffect(() => {
     if (!isAuthLoading && currentUser) void loadUserPreferences();
@@ -196,7 +195,7 @@ export default function HomePage() {
   const completeOnboarding = useCallback(
     async (answers: OnboardingAnswers) => {
       if (answers.categories.length === 0) {
-        setError("Elige al menos una categoría.");
+        setError(t.errors.pickCategory);
         return;
       }
       setIsSavingOnboarding(true);
@@ -230,6 +229,11 @@ export default function HomePage() {
 
         const preferences = await updatePreferences({
           tipoOptions: answers.categories,
+          // El idioma con el que la persona acaba de hacer el onboarding pasa a
+          // ser el de la cuenta. Sin esto, quien eligió English en la puerta se
+          // daba vuelta a español en la primera carga: la fila seguía con el
+          // valor por omisión de la columna.
+          language,
           timezone: answers.timezone,
           briefMorning: answers.briefMorning,
           briefEvening: answers.briefEvening
@@ -241,16 +245,16 @@ export default function HomePage() {
         // escribir queda fuera de pantalla a la derecha — un final flojo para un
         // onboarding cuyo punto era justamente que esa tarea es real.
         setView("today");
-        pushToast("Listo");
+        pushToast(t.toast.ready);
       } catch (onboardingError) {
         setError(
-          onboardingError instanceof Error ? onboardingError.message : "No se pudo guardar."
+          onboardingError instanceof Error ? onboardingError.message : t.errors.save
         );
       } finally {
         setIsSavingOnboarding(false);
       }
     },
-    [pushToast, setTasks]
+    [language, pushToast, setTasks, t]
   );
 
   /* ── task actions ────────────────────────────────────────────────────── */
@@ -304,10 +308,10 @@ export default function HomePage() {
       setDebts(await listDebts());
       setDebtsLoaded(true);
     } catch (debtsError) {
-      setError(debtsError instanceof Error ? debtsError.message : "No se pudieron cargar las deudas.");
+      setError(debtsError instanceof Error ? debtsError.message : t.errors.debtsLoad);
       setDebtsLoaded(true);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (view === "debts" && !debtsLoaded && currentUser) void loadDebts();
@@ -318,13 +322,13 @@ export default function HomePage() {
       try {
         const debt = await addDebt(input);
         setDebts((current) => [debt, ...current]);
-        pushToast("Anotada");
+        pushToast(t.toast.debtAdded);
       } catch (addError) {
-        setError(addError instanceof Error ? addError.message : "No se pudo anotar.");
-        pushToast("No se pudo anotar", "error");
+        setError(addError instanceof Error ? addError.message : t.errors.debtAdd);
+        pushToast(t.errors.debtAddShort, "error");
       }
     },
-    [pushToast]
+    [pushToast, t]
   );
 
   const markDebt = useCallback(
@@ -334,12 +338,12 @@ export default function HomePage() {
         const updated = await setDebtStatus(debt.id, status);
         setDebts((current) => current.map((row) => (row.id === debt.id ? updated : row)));
       } catch (updateError) {
-        pushToast(updateError instanceof Error ? updateError.message : "No se pudo actualizar", "error");
+        pushToast(updateError instanceof Error ? updateError.message : t.errors.update, "error");
       } finally {
         setDebtPending((current) => ({ ...current, [debt.id]: false }));
       }
     },
-    [pushToast]
+    [pushToast, t]
   );
 
   const handleToggleDebt = useCallback(
@@ -347,10 +351,10 @@ export default function HomePage() {
       const next = debt.status === "Pagado" ? "Por pagar" : "Pagado";
       void markDebt(debt, next);
       if (next === "Pagado") {
-        pushUndoToast("Marcada como pagada", "Deshacer", () => void markDebt(debt, "Por pagar"));
+        pushUndoToast(t.toast.debtPaid, t.toast.undo, () => void markDebt(debt, "Por pagar"));
       }
     },
-    [markDebt, pushUndoToast]
+    [markDebt, pushUndoToast, t]
   );
 
   const handleDeleteDebt = useCallback(
@@ -361,7 +365,7 @@ export default function HomePage() {
         await removeDebt(debt.id);
         // Como en las tareas: se borra y se ofrece la vuelta. Al deshacer vuelve
         // con id nuevo, que a nadie le consta salvo a un enlace guardado.
-        pushUndoToast("Eliminada", "Deshacer", () => {
+        pushUndoToast(t.toast.debtDeleted, t.toast.undo, () => {
           void (async () => {
             try {
               const restored = await addDebt({
@@ -374,16 +378,16 @@ export default function HomePage() {
               setDebts((current) => [restored, ...current]);
               if (debt.status === "Pagado") void markDebt(restored, "Pagado");
             } catch {
-              pushToast("No se pudo recuperar", "error");
+              pushToast(t.errors.restore, "error");
             }
           })();
         });
       } catch (deleteError) {
         setDebts(snapshot);
-        pushToast(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar", "error");
+        pushToast(deleteError instanceof Error ? deleteError.message : t.errors.delete, "error");
       }
     },
-    [debts, markDebt, pushToast, pushUndoToast]
+    [debts, markDebt, pushToast, pushUndoToast, t]
   );
 
   const handleQuickAdd = useCallback(
@@ -401,13 +405,13 @@ export default function HomePage() {
       try {
         const created = await addTask(payload);
         setTasks((current) => [taskFromPayload(created.rowId, payload), ...current]);
-        pushToast("Agregada");
+        pushToast(t.toast.taskAdded);
       } catch (addError) {
-        setError(addError instanceof Error ? addError.message : "No se pudo agregar.");
-        pushToast("No se pudo agregar", "error");
+        setError(addError instanceof Error ? addError.message : t.errors.taskAdd);
+        pushToast(t.errors.taskAddShort, "error");
       }
     },
-    [pushToast, setTasks]
+    [pushToast, setTasks, t]
   );
 
   // Done is a status flip, so undo is the same call in reverse — no need to warn
@@ -419,19 +423,19 @@ export default function HomePage() {
       const ok = await applyPatchOptimistic(
         task.rowId,
         { statusFinalOutcome: next },
-        wasDone ? "Reabierta" : "Hecha"
+        wasDone ? t.toast.taskReopened : t.toast.taskDone
       );
       if (ok && !wasDone) {
-        pushUndoToast("Hecha", "Deshacer", () => {
+        pushUndoToast(t.toast.taskDone, t.toast.undo, () => {
           void applyPatchOptimistic(
             task.rowId,
             { statusFinalOutcome: task.statusFinalOutcome || "To-do" },
-            "Reabierta"
+            t.toast.taskReopened
           );
         });
       }
     },
-    [applyPatchOptimistic, pushUndoToast]
+    [applyPatchOptimistic, pushUndoToast, t]
   );
 
   const handleMoveTomorrow = useCallback(
@@ -440,19 +444,19 @@ export default function HomePage() {
       const ok = await applyPatchOptimistic(
         task.rowId,
         { dueDateNextStep: tomorrow },
-        "Movida a mañana"
+        t.toast.movedToTomorrow
       );
       if (ok) {
-        pushUndoToast("Movida a mañana", "Deshacer", () => {
+        pushUndoToast(t.toast.movedToTomorrow, t.toast.undo, () => {
           void applyPatchOptimistic(
             task.rowId,
             { dueDateNextStep: previous },
-            "Fecha restaurada"
+            t.toast.dateRestored
           );
         });
       }
     },
-    [applyPatchOptimistic, pushUndoToast, tomorrow]
+    [applyPatchOptimistic, pushUndoToast, t, tomorrow]
   );
 
   const handleTogglePriority = useCallback(
@@ -460,10 +464,10 @@ export default function HomePage() {
       await applyPatchOptimistic(
         task.rowId,
         { isPriority: !task.isPriority },
-        task.isPriority ? "Sin prioridad" : "Con prioridad"
+        task.isPriority ? t.toast.priorityOff : t.toast.priorityOn
       );
     },
-    [applyPatchOptimistic]
+    [applyPatchOptimistic, t]
   );
 
   /**
@@ -482,7 +486,7 @@ export default function HomePage() {
       setTasks((current) => current.filter((row) => row.rowId !== task.rowId));
       try {
         await deleteTask(task.rowId);
-        pushUndoToast("Eliminada", "Deshacer", () => {
+        pushUndoToast(t.toast.taskDeleted, t.toast.undo, () => {
           void (async () => {
             // Everything but the id: the recreated row gets a fresh one.
             const payload: AddTaskPayload = {
@@ -499,18 +503,18 @@ export default function HomePage() {
             try {
               const restored = await addTask(payload);
               setTasks((current) => [taskFromPayload(restored.rowId, payload), ...current]);
-              pushToast("Recuperada");
+              pushToast(t.toast.taskRestored);
             } catch {
-              pushToast("No se pudo recuperar", "error");
+              pushToast(t.errors.restore, "error");
             }
           })();
         });
       } catch (deleteError) {
         setTasks(snapshot);
-        pushToast(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar", "error");
+        pushToast(deleteError instanceof Error ? deleteError.message : t.errors.delete, "error");
       }
     },
-    [pushToast, pushUndoToast, setTasks, tasks]
+    [pushToast, pushUndoToast, setTasks, t, tasks]
   );
 
   const editingTask = useMemo(
@@ -521,11 +525,11 @@ export default function HomePage() {
   const handleSaveEdit = useCallback(
     async (rowId: number, patch: TaskPatch) => {
       setIsSavingEdit(true);
-      const ok = await applyPatchOptimistic(rowId, patch, "Guardada");
+      const ok = await applyPatchOptimistic(rowId, patch, t.toast.taskSaved);
       setIsSavingEdit(false);
       if (ok) setEditingRowId(null);
     },
-    [applyPatchOptimistic]
+    [applyPatchOptimistic, t]
   );
 
   const taskActions = useMemo(
@@ -545,23 +549,23 @@ export default function HomePage() {
     () => [
       {
         id: "new",
-        label: "Nueva tarea",
+        label: t.commands.newTask,
         hint: "n",
         run: () => captureRef.current?.focus()
       },
-      { id: "today", label: "Ver Hoy", run: () => setView("today") },
-      { id: "settings", label: "Ajustes", run: () => router.push("/ajustes") },
-      { id: "telegram", label: "Conectar Telegram", run: () => router.push("/ajustes") },
-      { id: "board", label: "Ver Tablero", run: () => setView("board") },
-      { id: "debts", label: "Ver Deudas", run: () => setView("debts") },
+      { id: "today", label: t.commands.viewToday, run: () => setView("today") },
+      { id: "settings", label: t.commands.settings, run: () => router.push("/ajustes") },
+      { id: "telegram", label: t.commands.connectTelegram, run: () => router.push("/ajustes") },
+      { id: "board", label: t.commands.viewBoard, run: () => setView("board") },
+      { id: "debts", label: t.commands.viewDebts, run: () => setView("debts") },
       {
         id: "theme",
-        label: theme === "dark" ? "Modo claro" : "Modo oscuro",
+        label: theme === "dark" ? t.nav.lightMode : t.nav.darkMode,
         run: toggleTheme
       },
-      { id: "reload", label: "Recargar tareas", run: () => void loadTasks() }
+      { id: "reload", label: t.commands.reloadTasks, run: () => void loadTasks() }
     ],
-    [loadTasks, router, theme, toggleTheme]
+    [loadTasks, router, t, theme, toggleTheme]
   );
 
   useEffect(() => {
@@ -600,7 +604,7 @@ export default function HomePage() {
   if (isAuthLoading) {
     return (
       <main className="grid min-h-screen place-items-center bg-bg">
-        <p className="text-sm text-ink-3">Revisando tu sesión…</p>
+        <p className="text-sm text-ink-3">{t.loading.session}</p>
       </main>
     );
   }
@@ -620,7 +624,7 @@ export default function HomePage() {
   if (isPreferencesLoading) {
     return (
       <main className="grid min-h-screen place-items-center bg-bg">
-        <p className="text-sm text-ink-3">Cargando tus preferencias…</p>
+        <p className="text-sm text-ink-3">{t.loading.preferences}</p>
       </main>
     );
   }
@@ -628,7 +632,7 @@ export default function HomePage() {
   if (needsOnboarding) {
     return (
       <OnboardingScreen
-        language={UI_LANGUAGE}
+        language={language}
         initialSelection={userTipoOptions}
         isSaving={isSavingOnboarding}
         error={error}
@@ -660,7 +664,6 @@ export default function HomePage() {
           <QuickCapture
           ref={captureRef}
           today={today}
-          language={UI_LANGUAGE}
           categories={categories}
           defaultCategory={defaultCategory}
             disabled={isLoading}
@@ -676,7 +679,6 @@ export default function HomePage() {
           selected={categoryFilter}
           counts={categoryCounts}
           total={openTasks.length}
-          language={UI_LANGUAGE}
           onSelect={setCategoryFilter}
         />
       )}
@@ -691,13 +693,12 @@ export default function HomePage() {
           onDelete={(debt) => void handleDeleteDebt(debt)}
         />
       ) : isLoading ? (
-        <p className="py-12 text-center text-sm text-ink-3">Cargando tus tareas…</p>
+        <p className="py-12 text-center text-sm text-ink-3">{t.loading.tasks}</p>
       ) : view === "today" ? (
         <TodayView
           tasks={visibleTasks}
           today={today}
           weekEnd={weekEnd}
-          language={UI_LANGUAGE}
           pendingRows={pendingRows}
           {...taskActions}
         />
@@ -709,7 +710,6 @@ export default function HomePage() {
           today={today}
           tomorrow={tomorrow}
           weekEnd={weekEnd}
-          language={UI_LANGUAGE}
           pendingRows={pendingRows}
           {...taskActions}
         />
@@ -720,7 +720,6 @@ export default function HomePage() {
           key={editingTask.rowId}
           task={editingTask}
           categories={categories}
-          language={UI_LANGUAGE}
           isSaving={isSavingEdit}
           onClose={() => setEditingRowId(null)}
           onSave={(rowId, patch) => void handleSaveEdit(rowId, patch)}
@@ -732,7 +731,6 @@ export default function HomePage() {
         onClose={() => setPaletteOpen(false)}
         tasks={tasks}
         today={today}
-        language={UI_LANGUAGE}
         commands={commands}
         onPickTask={(task) => setEditingRowId(task.rowId)}
       />

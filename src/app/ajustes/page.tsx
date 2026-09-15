@@ -13,6 +13,7 @@ import {
 import { categoryLabel } from "@/lib/categories";
 import { categoryHue } from "@/lib/categoryColor";
 import { cn } from "@/lib/cn";
+import { useSetLanguage } from "@/lib/i18n/provider";
 import { AuthUser, UserPreferences } from "@/lib/types";
 
 /**
@@ -33,6 +34,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "signed_out">("loading");
+  const setLanguage = useSetLanguage();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
@@ -59,7 +61,12 @@ export default function SettingsPage() {
     setBusy(label);
     setError(null);
     try {
-      setPrefs(await updatePreferences(patch));
+      const saved = await updatePreferences(patch);
+      setPrefs(saved);
+      // El idioma es el único ajuste que cambia esta misma pantalla, así que se
+      // aplica al confirmar el guardado y no antes: si el servidor lo rechaza,
+      // la interfaz no queda en un idioma que la cuenta no tiene.
+      if (patch.language) setLanguage(saved.language);
       setNote(`${label} guardado`);
       window.setTimeout(() => setNote(null), 2500);
     } catch (saveError) {

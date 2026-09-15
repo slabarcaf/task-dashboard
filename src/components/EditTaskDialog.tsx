@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRecurrence } from "@/hooks/useRecurrence";
-import { AppLanguage, categoryLabel } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/cn";
 import { RecurrencePreset, recurrencePresetFromTask } from "@/lib/taskFilters";
 import { STATUS_FINAL_OUTCOME_OPTIONS, Task, TaskPatch } from "@/lib/types";
@@ -10,19 +11,13 @@ import { STATUS_FINAL_OUTCOME_OPTIONS, Task, TaskPatch } from "@/lib/types";
 type EditTaskDialogProps = {
   task: Task;
   categories: string[];
-  language: AppLanguage;
   isSaving: boolean;
   onClose: () => void;
   onSave: (rowId: number, patch: TaskPatch) => void;
 };
 
-const PRESETS: Array<[RecurrencePreset, string]> = [
-  ["none", "No se repite"],
-  ["daily", "Cada día"],
-  ["weekly", "Cada semana"],
-  ["monthly", "Cada mes"],
-  ["custom", "Personalizado"]
-];
+/** El orden de los presets. El rótulo sale del catálogo al dibujar. */
+const PRESETS: RecurrencePreset[] = ["none", "daily", "weekly", "monthly", "custom"];
 
 /**
  * The full form for one task — everything quick capture deliberately leaves out.
@@ -35,11 +30,12 @@ const PRESETS: Array<[RecurrencePreset, string]> = [
 export function EditTaskDialog({
   task,
   categories,
-  language,
   isSaving,
   onClose,
   onSave
 }: EditTaskDialogProps) {
+  const t = useT();
+  const language = useLanguage();
   const [draft, setDraft] = useState<Task>(task);
   const [preset, setPreset] = useState<RecurrencePreset>(() => recurrencePresetFromTask(task));
   const [interval, setInterval] = useState(task.recurrenceInterval || 2);
@@ -83,7 +79,7 @@ export function EditTaskDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Editar tarea"
+        aria-label={t.edit.title}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
@@ -96,10 +92,10 @@ export function EditTaskDialog({
         }}
         className="h-fit w-full max-w-[560px] rounded-panel border border-line-2 bg-surface p-5 shadow-float"
       >
-        <h2 className="mb-4 font-display text-lg font-semibold text-ink">Editar tarea</h2>
+        <h2 className="mb-4 font-display text-lg font-semibold text-ink">{t.edit.title}</h2>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Tarea" className="sm:col-span-2">
+          <Field label={t.edit.task} className="sm:col-span-2">
             <input
               ref={titleRef}
               value={draft.toDo}
@@ -108,7 +104,7 @@ export function EditTaskDialog({
             />
           </Field>
 
-          <Field label="Estado">
+          <Field label={t.edit.status}>
             <select
               value={draft.statusFinalOutcome}
               onChange={(event) => setDraft({ ...draft, statusFinalOutcome: event.target.value })}
@@ -122,7 +118,7 @@ export function EditTaskDialog({
             </select>
           </Field>
 
-          <Field label="Categoría">
+          <Field label={t.edit.category}>
             <select
               value={draft.tipo}
               onChange={(event) => setDraft({ ...draft, tipo: event.target.value })}
@@ -136,7 +132,7 @@ export function EditTaskDialog({
             </select>
           </Field>
 
-          <Field label="Siguiente paso" className="sm:col-span-2">
+          <Field label={t.edit.nextStep} className="sm:col-span-2">
             <input
               value={draft.nextStep}
               onChange={(event) => setDraft({ ...draft, nextStep: event.target.value })}
@@ -144,7 +140,7 @@ export function EditTaskDialog({
             />
           </Field>
 
-          <Field label="Fecha">
+          <Field label={t.edit.date}>
             <input
               type="date"
               value={draft.dueDateNextStep}
@@ -155,10 +151,10 @@ export function EditTaskDialog({
 
           <div className="sm:col-span-2">
             <span className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-              Se repite
+              {t.edit.repeats}
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {PRESETS.map(([value, label]) => (
+              {PRESETS.map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -170,7 +166,7 @@ export function EditTaskDialog({
                       : "border-line bg-surface text-ink-2 hover:border-line-2"
                   )}
                 >
-                  {label}
+                  {t.edit.presets[value]}
                 </button>
               ))}
             </div>
@@ -188,9 +184,9 @@ export function EditTaskDialog({
                   onChange={(event) => setUnit(event.target.value as "day" | "week" | "month")}
                   className={inputClass}
                 >
-                  <option value="day">días</option>
-                  <option value="week">semanas</option>
-                  <option value="month">meses</option>
+                  <option value="day">{t.edit.units.day}</option>
+                  <option value="week">{t.edit.units.week}</option>
+                  <option value="month">{t.edit.units.month}</option>
                 </select>
               </div>
             )}
@@ -203,7 +199,7 @@ export function EditTaskDialog({
             onClick={onClose}
             className="rounded-field border border-line px-3 py-1.5 text-sm text-ink-2 hover:border-line-2 hover:text-ink"
           >
-            Cancelar
+            {t.edit.cancel}
           </button>
           <button
             type="button"
@@ -211,7 +207,7 @@ export function EditTaskDialog({
             disabled={isSaving || !draft.toDo.trim()}
             className="rounded-field bg-brand px-4 py-1.5 text-sm font-semibold text-brand-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSaving ? "Guardando…" : "Guardar"}
+            {isSaving ? t.edit.saving : t.edit.save}
           </button>
         </div>
       </div>

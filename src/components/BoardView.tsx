@@ -2,18 +2,24 @@
 
 import { TaskCard } from "@/components/TaskCard";
 import { TaskActions } from "@/components/TodayView";
-import { AppLanguage } from "@/lib/categories";
+import { useT } from "@/lib/i18n/provider";
 import { CanvasColumnId, getCanvasColumnId } from "@/lib/taskFilters";
 import { cn } from "@/lib/cn";
 import { Task } from "@/lib/types";
+import type { Messages } from "@/lib/i18n";
 
-const COLUMNS: Array<{ id: CanvasColumnId; label: string; tone?: "late" | "today" }> = [
-  { id: "overdue", label: "Vencidas", tone: "late" },
-  { id: "today", label: "Hoy", tone: "today" },
-  { id: "tomorrow", label: "Mañana" },
-  { id: "this_week", label: "Esta semana" },
-  { id: "later", label: "Más adelante" },
-  { id: "no_due", label: "Sin fecha" }
+/**
+ * El orden y el tono de las columnas. El rótulo sale del catálogo al dibujar:
+ * una constante de módulo no puede leer el contexto, y tener la lista acá
+ * mantiene el orden en un solo sitio.
+ */
+const COLUMNS: Array<{ id: CanvasColumnId; key: keyof Messages["sections"]; tone?: "late" | "today" }> = [
+  { id: "overdue", key: "overdue", tone: "late" },
+  { id: "today", key: "today", tone: "today" },
+  { id: "tomorrow", key: "tomorrow" },
+  { id: "this_week", key: "thisWeek" },
+  { id: "later", key: "later" },
+  { id: "no_due", key: "noDate" }
 ];
 
 type BoardViewProps = TaskActions & {
@@ -21,7 +27,6 @@ type BoardViewProps = TaskActions & {
   today: string;
   tomorrow: string;
   weekEnd: string;
-  language: AppLanguage;
   pendingRows: Record<number, boolean>;
 };
 
@@ -36,10 +41,10 @@ export function BoardView({
   today,
   tomorrow,
   weekEnd,
-  language,
   pendingRows,
   ...actions
 }: BoardViewProps) {
+  const t = useT();
   const buckets: Record<CanvasColumnId, Task[]> = {
     overdue: [], today: [], tomorrow: [], this_week: [], later: [], no_due: []
   };
@@ -74,7 +79,7 @@ export function BoardView({
                     column.tone === "late" ? "text-late" : "text-ink"
                   )}
                 >
-                  {column.label}
+                  {t.sections[column.key]}
                 </b>
                 <span className="num ml-auto text-[11.5px] font-bold text-ink-3">{rows.length}</span>
               </div>
@@ -86,7 +91,6 @@ export function BoardView({
                     key={task.rowId}
                     task={task}
                     today={today}
-                    language={language}
                     density="board"
                     isPending={Boolean(pendingRows[task.rowId])}
                     {...actions}

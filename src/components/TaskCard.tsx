@@ -1,6 +1,8 @@
 "use client";
 
-import { AppLanguage, categoryLabel } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
+import type { AppLanguage } from "@/lib/language";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/cn";
 import { categoryHue } from "@/lib/categoryColor";
 import { addDaysToIsoDate, daysBetweenIsoDates, formatShortDate, relativeDueLabel } from "@/lib/date";
@@ -12,7 +14,6 @@ export type TaskCardDensity = "list" | "board";
 type TaskCardProps = {
   task: Task;
   today: string;
-  language: AppLanguage;
   density?: TaskCardDensity;
   isPending?: boolean;
   onToggleDone: (task: Task) => void;
@@ -35,7 +36,6 @@ type TaskCardProps = {
 export function TaskCard({
   task,
   today,
-  language,
   density = "list",
   isPending = false,
   onToggleDone,
@@ -44,6 +44,8 @@ export function TaskCard({
   onTogglePriority,
   onDelete
 }: TaskCardProps) {
+  const t = useT();
+  const language = useLanguage();
   const isDone = normalizeStatus(task.statusFinalOutcome) === "Done";
   const isOverdue = Boolean(task.dueDateNextStep && task.dueDateNextStep < today && !isDone);
   // "Mover a mañana" pone la fecha en mañana, no la corre un día. Sobre una tarea
@@ -87,7 +89,7 @@ export function TaskCard({
           type="button"
           role="checkbox"
           aria-checked={isDone}
-          aria-label={isDone ? "Marcar como pendiente" : "Marcar como hecha"}
+          aria-label={isDone ? t.card.markPending : t.card.markDone}
           onClick={() => onToggleDone(task)}
           className={cn(
             "flex-none rounded-full border-[1.7px] transition-colors",
@@ -129,7 +131,7 @@ export function TaskCard({
         {task.isPriority && (
           <span
             className="rounded-chip bg-amber-soft px-2 py-0.5 text-[11.5px] font-semibold text-amber-ink"
-            title={language === "en" ? "Priority" : "Prioridad"}
+            title={t.card.priority}
           >
             🔥
           </span>
@@ -158,18 +160,18 @@ export function TaskCard({
           buttons reserved ~120px of every card even at zero opacity, which in a
           258px board column left the title breaking one word per line. */}
       <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field border border-line bg-surface opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-        <CardAction label="Editar" onClick={() => onEdit(task)}>✎</CardAction>
+        <CardAction label={t.card.edit} onClick={() => onEdit(task)}>✎</CardAction>
         {!alreadyTomorrow && (
-          <CardAction label="Mover a mañana" onClick={() => onMoveTomorrow(task)}>→</CardAction>
+          <CardAction label={t.card.moveTomorrow} onClick={() => onMoveTomorrow(task)}>→</CardAction>
         )}
         <CardAction
-          label={task.isPriority ? "Quitar prioridad" : "Marcar prioridad"}
+          label={task.isPriority ? t.card.removePriority : t.card.addPriority}
           pressed={task.isPriority}
           onClick={() => onTogglePriority(task)}
         >
           🔥
         </CardAction>
-        <CardAction label="Eliminar" onClick={() => onDelete(task)}>🗑</CardAction>
+        <CardAction label={t.card.delete} onClick={() => onDelete(task)}>🗑</CardAction>
       </div>
     </article>
   );

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { useLanguage, useSetLanguage, useT } from "@/lib/i18n/provider";
+import type { AppLanguage } from "@/lib/language";
 
 declare global {
   interface Window {
@@ -45,6 +47,17 @@ type SignInScreenProps = {
  * Google injects an iframe, so the button cannot be styled from here — only the
  * options below reach it, and `width` is a fixed pixel value. The layout is
  * built around its 280px, it does not paint it.
+ *
+ * `locale` es una de esas opciones, y Google solo la lee en `renderButton`:
+ * cambiarla después no hace nada. Por eso `language` está en las dependencias
+ * del efecto — para que el botón se vuelva a dibujar. La línea `innerHTML = ""`
+ * existe justamente para soportar ese redibujo, así que esto va con el diseño
+ * del componente y no contra él.
+ *
+ * ⚠️ El selector de idioma es un control que solo re-renderiza. **No** condiciona
+ * el subárbol del botón ni remonta la pantalla con `key`: cualquiera de las dos
+ * cosas es la falla que describe el párrafo de arriba, y esa falla no deja
+ * rastro en la consola.
  */
 export function SignInScreen({
   clientId,
@@ -53,6 +66,9 @@ export function SignInScreen({
   onCredential,
   onScriptError
 }: SignInScreenProps) {
+  const t = useT();
+  const language = useLanguage();
+  const setLanguage = useSetLanguage();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -71,7 +87,7 @@ export function SignInScreen({
         size: "large",
         text: "continue_with",
         shape: "pill",
-        locale: "es",
+        locale: language,
         width: 280
       });
     };
@@ -86,14 +102,14 @@ export function SignInScreen({
     script.async = true;
     script.defer = true;
     script.onload = renderGoogleButton;
-    script.onerror = () => onScriptError("No se pudo cargar el acceso con Google.");
+    script.onerror = () => onScriptError(t.errors.googleScript);
     document.head.appendChild(script);
 
     // `script.remove()` rather than `head.removeChild(script)`: the second
     // throws NotFoundError if the node is already gone, which happens when the
     // screen mounts and unmounts a couple of times in a row.
     return () => script.remove();
-  }, [clientId, onCredential, onScriptError]);
+  }, [clientId, language, onCredential, onScriptError, t.errors.googleScript]);
 
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -115,29 +131,29 @@ export function SignInScreen({
           <Wordmark tone="night" />
 
           <h1 className="mt-12 max-w-[17ch] font-display text-[clamp(30px,3.6vw,44px)] font-bold leading-[1.12] tracking-tight">
-            Tus pendientes, y <span className="text-amber">alguien</span> que te los recuerda.
+            {t.signIn.headlineBefore}
+            <span className="text-amber">{t.signIn.headlineAccent}</span>
+            {t.signIn.headlineAfter}
           </h1>
           <p className="mt-5 max-w-[40ch] text-[15.5px] leading-relaxed text-[#B9BEE0]">
-            Anótalos escribiéndole a Sydney como le escribirías a una persona — “pagar la luz el
-            viernes” — o ábrelos aquí y ordénalos con el mouse. Ella te los devuelve puestos en
-            orden, sin que tengas que ir a buscarlos.
+            {t.signIn.blurb}
           </p>
 
           {/* El arco del día. Muestra las 7:00 y las 20:00 porque esa es la
               estructura real del producto, no un adorno. */}
           <div className="mt-auto max-w-[400px] border-t border-white/15 pt-5">
             <p className="mb-3 font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-[#8E95C4]">
-              Y te escribe dos veces al día
+              {t.signIn.briefEyebrow}
             </p>
             <div className="relative h-[3px] rounded-sm bg-[linear-gradient(90deg,var(--amber)_0%,#8FA0E8_48%,#4E5AA8_100%)]">
               <span className="absolute left-[47%] top-1/2 h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_4px_rgba(255,255,255,.16)]" />
             </div>
             <div className="mt-3 flex justify-between text-[12.5px] text-[#A2A9D4]">
-              <span className="num">☀ 7:00 · lo que viene hoy</span>
-              <span className="num">☾ 20:00 · cierre del día</span>
+              <span className="num">{t.signIn.morningBrief}</span>
+              <span className="num">{t.signIn.eveningBrief}</span>
             </div>
             <p className="mt-5 text-[12.5px] text-[#767DA8]">
-              Aquí o en Telegram, da igual: es la misma cuenta y la misma lista.
+              {t.signIn.sameAccount}
             </p>
           </div>
         </div>
@@ -145,10 +161,32 @@ export function SignInScreen({
 
       <section className="flex flex-col items-center justify-center bg-surface px-7 py-14 sm:px-12">
         <div className="w-full max-w-sm">
+          {/* Antes del titular a propósito: es anterior a cualquier cuenta, y es
+              lo primero que necesita quien llega y no lee español. Guarda en el
+              dispositivo, nunca en la base — acá todavía no hay cuenta. */}
+          <div className="mb-6 inline-flex rounded-field border border-line bg-sunken p-0.5">
+            {(["es", "en"] as AppLanguage[]).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLanguage(code)}
+                aria-pressed={language === code}
+                className={cn(
+                  "rounded-[6px] px-3 py-1 text-[12.5px] font-semibold transition-colors",
+                  language === code
+                    ? "bg-surface text-ink shadow-card"
+                    : "text-ink-3 hover:text-ink-2"
+                )}
+              >
+                {t.language[code]}
+              </button>
+            ))}
+          </div>
+
           <h2 className="font-display text-[25px] font-semibold tracking-tight text-ink">
-            Entra a tu cuenta
+            {t.signIn.title}
           </h2>
-          <p className="mt-1.5 text-[14.5px] text-ink-2">Tus tareas son privadas. Nadie más las ve.</p>
+          <p className="mt-1.5 text-[14.5px] text-ink-2">{t.signIn.privacy}</p>
 
           {error && (
             <p className="mt-6 rounded-card border border-late/30 bg-late-soft px-4 py-3 text-sm text-late">
@@ -162,20 +200,20 @@ export function SignInScreen({
                 <div ref={googleButtonRef} />
                 {/* Hermano del div del ref, nunca hijo: renderButton lo vacía. */}
                 <p className="mt-3 h-5 text-sm text-ink-3" aria-live="polite">
-                  {isSigningIn ? "Entrando…" : ""}
+                  {isSigningIn ? t.signIn.signingIn : ""}
                 </p>
               </>
             ) : (
               <p className="rounded-card border border-late/30 bg-late-soft px-4 py-3 text-sm text-late">
-                Falta <code className="font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>. El acceso no
-                puede funcionar sin esa variable.
+                {t.signIn.missingClientIdBefore}
+                <code className="font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>
+                {t.signIn.missingClientIdAfter}
               </p>
             )}
           </div>
 
           <p className="mt-6 max-w-[36ch] text-[12.5px] leading-relaxed text-ink-3">
-            Al continuar aceptas que Sydney guarde tus tareas para mostrártelas. La sesión dura 15
-            días.
+            {t.signIn.terms}
           </p>
         </div>
       </section>
@@ -199,6 +237,7 @@ export function Wordmark({
   hideWordOnMobile?: boolean;
   href?: string;
 }) {
+  const title = useT().nav.goToTasks;
   const className = cn(
     "flex items-center gap-3",
     href && "rounded-field transition-opacity hover:opacity-80"
@@ -230,7 +269,7 @@ export function Wordmark({
   );
 
   return href ? (
-    <Link href={href} title="Ir a mis tareas" className={className}>
+    <Link href={href} title={title} className={className}>
       {inner}
     </Link>
   ) : (

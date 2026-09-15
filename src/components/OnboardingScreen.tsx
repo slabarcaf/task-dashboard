@@ -502,7 +502,6 @@ export function OnboardingScreen({
                 <TaskCard
                   task={previewTask}
                   today={today}
-                  language={language}
                   onToggleDone={() => setPreviewDone((current) => !current)}
                   onEdit={() => taskInputRef.current?.focus()}
                   // Mañana, no "un día más": es lo que hace el botón de verdad,

@@ -40,7 +40,18 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
  * siempre roja no la lee nadie.
  */
 const TRANSLATED = [
-  // Fase 0 — cañería. Se traducen en la fase 1.
+  // Fase 1 — el camino de la demo.
+  "src/app/page.tsx",
+  "src/components/AppShell.tsx",
+  "src/components/BoardView.tsx",
+  "src/components/CategoryFilter.tsx",
+  "src/components/CommandPalette.tsx",
+  "src/components/EditTaskDialog.tsx",
+  "src/components/QuickCapture.tsx",
+  "src/components/SignInScreen.tsx",
+  "src/components/TaskCard.tsx",
+  "src/components/TaskSection.tsx",
+  "src/components/TodayView.tsx"
 ];
 
 /**
@@ -49,6 +60,13 @@ const TRANSLATED = [
  * frontera identificador/etiqueta, que es el verdadero valor de esta lista.
  */
 const WIRE_VALUES = [
+  // Rutas. `/ajustes` es una URL en español y se queda así: cambiarla rompería
+  // enlaces guardados y no le cambia un texto a nadie. Un esquema /es/ /en/
+  // se descartó a propósito — el idioma es una preferencia de cuenta, y
+  // sacarlo de la URL crearía una segunda fuente de verdad que puede
+  // contradecir a `users.language`.
+  "/ajustes",
+  "/admin",
   "Me deben",
   "Debo yo",
   "Por pagar",

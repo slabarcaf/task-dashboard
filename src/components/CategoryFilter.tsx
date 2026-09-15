@@ -1,6 +1,7 @@
 "use client";
 
-import { AppLanguage, categoryLabel } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { categoryHue } from "@/lib/categoryColor";
 import { cn } from "@/lib/cn";
 
@@ -10,7 +11,6 @@ type CategoryFilterProps = {
   selected: string | null;
   counts: Record<string, number>;
   total: number;
-  language: AppLanguage;
   onSelect: (category: string | null) => void;
 };
 
@@ -29,9 +29,10 @@ export function CategoryFilter({
   selected,
   counts,
   total,
-  language,
   onSelect
 }: CategoryFilterProps) {
+  const t = useT();
+  const language = useLanguage();
   const withTasks = categories.filter((category) => (counts[category] || 0) > 0);
   // Con una sola categoría no hay nada que filtrar.
   if (withTasks.length < 2) return null;
@@ -39,7 +40,7 @@ export function CategoryFilter({
   return (
     <div
       role="group"
-      aria-label="Filtrar por categoría"
+      aria-label={t.filter.group}
       // Se desliza de lado en el teléfono en vez de envolverse en tres filas.
       className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0"
     >
@@ -47,7 +48,7 @@ export function CategoryFilter({
         active={selected === null}
         onClick={() => onSelect(null)}
         count={total}
-        label="Todas"
+        label={t.filter.all}
       />
       {withTasks.map((category) => (
         <FilterChip

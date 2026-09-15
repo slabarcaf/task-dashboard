@@ -2,7 +2,7 @@
 
 import { TaskCard } from "@/components/TaskCard";
 import { EmptyState, TaskSection } from "@/components/TaskSection";
-import { AppLanguage } from "@/lib/categories";
+import { useT } from "@/lib/i18n/provider";
 import { normalizeStatus } from "@/lib/taskFilters";
 import { Task } from "@/lib/types";
 
@@ -18,7 +18,6 @@ type TodayViewProps = TaskActions & {
   tasks: Task[];
   today: string;
   weekEnd: string;
-  language: AppLanguage;
   pendingRows: Record<number, boolean>;
 };
 
@@ -33,10 +32,10 @@ export function TodayView({
   tasks,
   today,
   weekEnd,
-  language,
   pendingRows,
   ...actions
 }: TodayViewProps) {
+  const t = useT();
   const open = tasks.filter((task) => normalizeStatus(task.statusFinalOutcome) !== "Done");
   const done = tasks.filter((task) => normalizeStatus(task.statusFinalOutcome) === "Done");
 
@@ -50,12 +49,12 @@ export function TodayView({
 
   type Group = { key: string; title: string; rows: Task[]; tone?: "late" | "today" };
   const groups: Group[] = ([
-    { key: "overdue", title: "Vencidas", rows: overdue, tone: "late" },
-    { key: "today", title: "Hoy", rows: dueToday, tone: "today" },
-    { key: "week", title: "Esta semana", rows: thisWeek },
-    { key: "later", title: "Más adelante", rows: later },
-    { key: "no_date", title: "Sin fecha", rows: noDate },
-    { key: "done", title: "Ya está", rows: done }
+    { key: "overdue", title: t.sections.overdue, rows: overdue, tone: "late" },
+    { key: "today", title: t.sections.today, rows: dueToday, tone: "today" },
+    { key: "week", title: t.sections.thisWeek, rows: thisWeek },
+    { key: "later", title: t.sections.later, rows: later },
+    { key: "no_date", title: t.sections.noDate, rows: noDate },
+    { key: "done", title: t.sections.done, rows: done }
   ] as Group[]).filter((group) => group.rows.length > 0);
 
   // The only way every group is empty is that there are no tasks at all — a
@@ -66,8 +65,8 @@ export function TodayView({
     return (
       <EmptyState
         icon="✍️"
-        title="Todavía no hay nada aquí"
-        hint="Escribe tu primera tarea arriba. Puedes decir la fecha en la misma frase: “pagar la luz el viernes”."
+        title={t.empty.firstRunTitle}
+        hint={t.empty.firstRunHint}
       />
     );
   }
@@ -81,7 +80,6 @@ export function TodayView({
               key={task.rowId}
               task={task}
               today={today}
-              language={language}
               isPending={Boolean(pendingRows[task.rowId])}
               {...actions}
             />
