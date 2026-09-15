@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TaskCard } from "@/components/TaskCard";
 import { TelegramConnect } from "@/components/TelegramConnect";
 import { Wordmark } from "@/components/SignInScreen";
-import { AppLanguage, CANONICAL_CATEGORIES, categoryLabel } from "@/lib/categories";
+import { CANONICAL_CATEGORIES, categoryLabel } from "@/lib/categories";
+import { longWeekdayDate, money, timeInZone } from "@/lib/i18n/format";
+import { useLanguage, useT } from "@/lib/i18n/provider";
+import type { Messages } from "@/lib/i18n";
+import type { AppLanguage } from "@/lib/language";
 import { cn } from "@/lib/cn";
 import { addDaysToIsoDate, todayIsoDate } from "@/lib/date";
 import { parseTaskInput } from "@/lib/parseTaskInput";
@@ -33,7 +37,6 @@ export type OnboardingAnswers = {
 };
 
 type OnboardingScreenProps = {
-  language: AppLanguage;
   initialSelection: string[];
   isSaving: boolean;
   error: string | null;
@@ -42,12 +45,13 @@ type OnboardingScreenProps = {
   onComplete: (answers: OnboardingAnswers) => void;
 };
 
-const STEPS = [
-  { label: "Categorías", eyebrow: "Cómo se ordena tu vida" },
-  { label: "Horarios", eyebrow: "Cuándo te llega el resumen" },
-  { label: "Tu primera tarea", eyebrow: "Escríbela como la dirías" },
-  { label: "Tu primera deuda", eyebrow: "Quién te debe, a quién le debes" },
-  { label: "Listo", eyebrow: "Lo que falta para que funcione" }
+/** El orden de los pasos. Los rótulos salen del catálogo al dibujar. */
+const STEPS: Array<keyof Messages["onboarding"]["steps"]> = [
+  "categories",
+  "briefs",
+  "task",
+  "debt",
+  "done"
 ];
 
 const TIMEZONES = [
@@ -76,7 +80,6 @@ const CURRENCIES = ["USD", "CLP", "EUR"];
  * vacío: el producto se presentaba a sí mismo en una esquina.
  */
 export function OnboardingScreen({
-  language,
   initialSelection,
   isSaving,
   error,
@@ -84,6 +87,8 @@ export function OnboardingScreen({
   onToggleTheme,
   onComplete
 }: OnboardingScreenProps) {
+  const t = useT();
+  const language = useLanguage();
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState<string[]>(initialSelection);
   const [custom, setCustom] = useState("");
@@ -216,7 +221,9 @@ export function OnboardingScreen({
   const isLast = step === STEPS.length - 1;
   const canAdvance = !(step === 0 && finalCategories.length === 0);
   const nextLabel =
-    (step === 2 && !parsed.title.trim()) || (step === 3 && !debtIsUsable) ? "Saltar" : "Seguir";
+    (step === 2 && !parsed.title.trim()) || (step === 3 && !debtIsUsable)
+      ? t.onboarding.skip
+      : t.onboarding.next;
 
   return (
     <main className="grid min-h-screen bg-bg lg:grid-cols-[0.9fr_1.1fr]">
@@ -237,16 +244,15 @@ export function OnboardingScreen({
           <Wordmark tone="night" />
 
           <h1 className="mt-12 max-w-[15ch] font-display text-[clamp(28px,3vw,40px)] font-bold leading-[1.12] tracking-tight">
-            Cinco minutos, y Sydney te conoce.
+            {t.onboarding.heroTitle}
           </h1>
           <p className="mt-5 max-w-[38ch] text-[15.5px] leading-relaxed text-[#B9BEE0]">
-            Nada de esto queda escrito en piedra: todo se cambia después en Ajustes. Lo
-            preguntamos ahora para que el primer día ya sirva.
+            {t.onboarding.heroBlurb}
           </p>
 
           <ol className="mt-12 space-y-3.5">
-            {STEPS.map((entry, index) => (
-              <li key={entry.label} className="flex items-center gap-3.5">
+            {STEPS.map((key, index) => (
+              <li key={key} className="flex items-center gap-3.5">
                 <span
                   aria-hidden
                   className={cn(
@@ -266,14 +272,14 @@ export function OnboardingScreen({
                     index === step ? "font-semibold text-white" : "text-[#8E95C4]"
                   )}
                 >
-                  {entry.label}
+                  {t.onboarding.steps[key].label}
                 </span>
               </li>
             ))}
           </ol>
 
           <p className="mt-auto max-w-[36ch] border-t border-white/15 pt-5 text-[12.5px] text-[#767DA8]">
-            Aquí o en Telegram, da igual: es la misma cuenta y la misma lista.
+            {t.onboarding.heroFooter}
           </p>
         </div>
       </section>
@@ -285,12 +291,12 @@ export function OnboardingScreen({
             <Wordmark />
           </div>
           <p className="hidden font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-ink-3 lg:block">
-            {STEPS[step].eyebrow}
+            {t.onboarding.steps[STEPS[step]].eyebrow}
           </p>
           <button
             type="button"
             onClick={onToggleTheme}
-            aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            aria-label={theme === "dark" ? t.nav.lightMode : t.nav.darkMode}
             className="grid h-9 w-9 flex-none place-items-center rounded-field border border-line text-[15px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink"
           >
             {theme === "dark" ? "☀" : "☾"}
@@ -298,12 +304,12 @@ export function OnboardingScreen({
         </header>
 
         {/* Barra de progreso, solo en móvil: en escritorio la lista lateral ya lo dice. */}
-        <ol className="mb-7 flex items-center gap-1.5 lg:hidden" aria-label="Progreso">
-          {STEPS.map((entry, index) => (
+        <ol className="mb-7 flex items-center gap-1.5 lg:hidden" aria-label={t.onboarding.progress}>
+          {STEPS.map((key, index) => (
             <li
-              key={entry.label}
+              key={key}
               aria-current={index === step ? "step" : undefined}
-              title={entry.label}
+              title={t.onboarding.steps[key].label}
               className={cn(
                 "h-1.5 flex-1 rounded-chip transition-all",
                 index === step ? "bg-brand" : index < step ? "bg-brand/40" : "bg-line"
@@ -316,8 +322,8 @@ export function OnboardingScreen({
           {step === 0 && (
             <>
               <Head
-                title="¿En qué partes se divide tu vida?"
-                hint="Elige las que uses de verdad. Sirven para agrupar tus tareas, y puedes cambiarlas cuando quieras."
+                title={t.onboarding.categoriesTitle}
+                hint={t.onboarding.categoriesHint}
               />
               <div className="flex flex-wrap gap-2">
                 {CANONICAL_CATEGORIES.map((category) => {
@@ -351,18 +357,18 @@ export function OnboardingScreen({
                       addCustom();
                     }
                   }}
-                  placeholder="¿Falta alguna? Escríbela aquí"
+                  placeholder={t.onboarding.customPlaceholder}
                   className={cn(inputClass, "flex-1")}
                 />
                 <button type="button" onClick={addCustom} className={ghostClass}>
-                  Agregar
+                  {t.onboarding.customAdd}
                 </button>
               </div>
 
               {invented.length > 0 && (
                 <div className="mt-4">
                   <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                    Tuyas
+                    {t.onboarding.inventedTitle}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {invented.map((name) => (
@@ -370,7 +376,7 @@ export function OnboardingScreen({
                         key={name}
                         type="button"
                         onClick={() => toggle(name)}
-                        title="Quitar"
+                        title={t.onboarding.inventedRemove}
                         className="group rounded-chip border border-brand/40 bg-brand-soft px-4 py-2 text-[14.5px] font-semibold text-brand"
                       >
                         {name}
@@ -388,12 +394,12 @@ export function OnboardingScreen({
           {step === 1 && (
             <>
               <Head
-                title="¿Cuándo te mando el resumen del día?"
-                hint="Dos mensajes por Telegram, no más: en la mañana lo que viene hoy, en la noche lo que quedó pendiente. Puedes apagar cualquiera de los dos."
+                title={t.onboarding.briefsTitle}
+                hint={t.onboarding.briefsHint}
               />
               <label className="mb-6 block">
                 <span className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                  Tu zona horaria
+                  {t.onboarding.timezoneLabel}
                 </span>
                 <select
                   value={timezone}
@@ -407,21 +413,21 @@ export function OnboardingScreen({
                   ))}
                 </select>
                 <span className="num mt-1.5 block text-[12.5px] text-ink-3">
-                  Ahí son las {nowIn(timezone)} ahora mismo.
+                  {t.onboarding.timezoneNow(timeInZone(timezone, language, "—"))}
                 </span>
               </label>
 
               <BriefToggle
-                label="☀ Resumen de la mañana"
-                hint="Lo que vence hoy y lo que viene"
+                label={t.onboarding.morningLabel}
+                hint={t.onboarding.morningHint}
                 enabled={wantsMorning}
                 value={morning}
                 onToggle={setWantsMorning}
                 onChange={setMorning}
               />
               <BriefToggle
-                label="☾ Resumen de la noche"
-                hint="Lo que quedó sin hacer y lo de mañana"
+                label={t.onboarding.eveningLabel}
+                hint={t.onboarding.eveningHint}
                 enabled={wantsEvening}
                 value={evening}
                 onToggle={setWantsEvening}
@@ -429,8 +435,7 @@ export function OnboardingScreen({
               />
               {!wantsMorning && !wantsEvening && (
                 <p className="mt-3 rounded-card border border-amber/30 bg-amber-soft px-3.5 py-2.5 text-[13px] text-amber-ink">
-                  Sin ninguno de los dos, Sydney no te va a escribir sola. Puedes seguir y
-                  encenderlos después en Ajustes.
+                  {t.onboarding.noBriefs}
                 </p>
               )}
             </>
@@ -439,15 +444,15 @@ export function OnboardingScreen({
           {step === 2 && (
             <>
               <Head
-                title="Escribe tu primera tarea"
-                hint="Como se la dirías a una persona. Si mencionas cuándo o de qué es, se entiende solo — prueba con “pagar la luz el viernes” o “mandar el informe, categoría trabajo”."
+                title={t.onboarding.taskTitle}
+                hint={t.onboarding.taskHint}
               />
               <input
                 ref={taskInputRef}
                 autoFocus
                 value={taskText}
                 onChange={(event) => setTaskText(event.target.value)}
-                placeholder="pagar la luz el viernes"
+                placeholder={t.onboarding.taskPlaceholder}
                 className={cn(inputClass, "text-[16px]")}
               />
 
@@ -461,10 +466,10 @@ export function OnboardingScreen({
                   dice la tarjeta. */}
               {(parsed.matchedText || parsed.tipoMatchedText) && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12.5px]">
-                  <span className="text-ink-3">Entendí:</span>
+                  <span className="text-ink-3">{t.onboarding.understood}</span>
                   {parsed.matchedText && (
                     <span className="rounded-chip border border-line bg-raised px-2.5 py-1 text-ink-2">
-                      “{parsed.matchedText}” → {formatDay(baseDue, today)}
+                      “{parsed.matchedText}” → {formatDay(baseDue, today, t, language)}
                     </span>
                   )}
                   {parsed.tipoMatchedText && (
@@ -476,7 +481,7 @@ export function OnboardingScreen({
               )}
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-[12.5px] text-ink-3">Categoría:</span>
+                <span className="text-[12.5px] text-ink-3">{t.onboarding.categoryLabel}</span>
                 {finalCategories.map((option) => (
                   <button
                     key={option}
@@ -496,7 +501,7 @@ export function OnboardingScreen({
               </div>
 
               <p className="mb-2 mt-7 text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                Así se va a ver — pruébala
+                {t.onboarding.previewTaskTitle}
               </p>
               <div className={cn("transition-opacity", !parsed.title.trim() && "opacity-45")}>
                 <TaskCard
@@ -519,8 +524,8 @@ export function OnboardingScreen({
               </div>
               <p className="mt-2.5 text-[12.5px] text-ink-3">
                 {parsed.title.trim()
-                  ? "Pasa el mouse por encima: los botones funcionan de verdad, y lo que dejes marcado se guarda con la tarea."
-                  : "Sin fecha en la frase, queda para hoy."}
+                  ? t.onboarding.previewTaskHintFull
+                  : t.onboarding.previewTaskHintEmpty}
               </p>
             </>
           )}
@@ -528,8 +533,8 @@ export function OnboardingScreen({
           {step === 3 && (
             <>
               <Head
-                title="¿Alguien te debe algo?"
-                hint="Sydney también lleva la cuenta de las platas: lo que te deben y lo que debes, con quién y por qué. Si no se te ocurre ninguna ahora, sáltala."
+                title={t.onboarding.debtTitle}
+                hint={t.onboarding.debtHint}
               />
 
               <div className="mb-4 inline-flex self-start rounded-field border border-line p-0.5">
@@ -546,7 +551,9 @@ export function OnboardingScreen({
                         : "text-ink-2 hover:text-ink"
                     )}
                   >
-                    {option}
+                    {/* El valor guardado sigue siendo el de siempre; acá solo
+                        cambia lo que se lee. */}
+                    {option === "Me deben" ? t.debts.directionTheyOwe : t.debts.directionIOwe}
                   </button>
                 ))}
               </div>
@@ -555,7 +562,11 @@ export function OnboardingScreen({
                 <input
                   value={debtName}
                   onChange={(event) => setDebtName(event.target.value)}
-                  placeholder={debtDirection === "Me deben" ? "¿Quién te debe?" : "¿A quién le debes?"}
+                  placeholder={
+                    debtDirection === "Me deben"
+                      ? t.onboarding.debtWhoOwesMe
+                      : t.onboarding.debtWhoIOwe
+                  }
                   className={inputClass}
                 />
                 <div className="flex gap-2">
@@ -563,7 +574,7 @@ export function OnboardingScreen({
                     value={debtAmount}
                     onChange={(event) => setDebtAmount(event.target.value)}
                     inputMode="decimal"
-                    placeholder="¿Cuánto?"
+                    placeholder={t.onboarding.debtAmount}
                     className={cn(inputClass, "num flex-1")}
                   />
                   <select
@@ -581,13 +592,13 @@ export function OnboardingScreen({
                 <input
                   value={debtReason}
                   onChange={(event) => setDebtReason(event.target.value)}
-                  placeholder="¿Por qué? (opcional)"
+                  placeholder={t.onboarding.debtReason}
                   className={inputClass}
                 />
               </div>
 
               <p className="mb-2 mt-7 text-[12px] font-semibold uppercase tracking-wide text-ink-3">
-                Así se va a ver
+                {t.onboarding.previewDebtTitle}
               </p>
               <div
                 className={cn(
@@ -609,11 +620,13 @@ export function OnboardingScreen({
                   )}
                 >
                   {debtDirection === "Me deben" ? "+" : "−"}
-                  {debtIsUsable ? amountValue.toLocaleString("es-CL") : "0"} {debtCurrency}
+                  {/* Antes era un `toLocaleString("es-CL")` en línea: la segunda
+                      copia del mismo bug de agrupación de miles. */}
+                  {money(debtIsUsable ? amountValue : 0, debtCurrency, language)}
                 </span>
               </div>
               <p className="mt-2.5 text-[12.5px] text-ink-3">
-                Después puedes marcarla como pagada, aquí o diciéndoselo a Sydney por Telegram.
+                {t.onboarding.previewDebtHint}
               </p>
             </>
           )}
@@ -621,28 +634,27 @@ export function OnboardingScreen({
           {step === 4 && (
             <>
               <Head
-                title="Ya está. Falta una cosa."
-                hint="Tus tareas y tus deudas ya viven en tu cuenta. Lo que falta es la mitad que te busca a ti."
+                title={t.onboarding.doneTitle}
+                hint={t.onboarding.doneHint}
               />
 
               <div className="rounded-panel border border-brand/30 bg-brand-soft p-5">
                 <p className="font-display text-[17px] font-semibold leading-snug text-ink">
-                  ✈ Conecta Telegram, o Sydney se queda muda.
+                  {t.onboarding.telegramPitch}
                 </p>
                 <p className="mt-2.5 text-[14px] leading-relaxed text-ink-2">
-                  Esta página es donde miras tus tareas cuando te acuerdas de mirarlas. Telegram es
-                  donde Sydney te busca a ti: te manda el resumen{" "}
-                  {wantsMorning && wantsEvening
-                    ? "de la mañana y el de la noche"
-                    : wantsMorning
-                      ? "de la mañana"
-                      : wantsEvening
-                        ? "de la noche"
-                        : "del día"}
-                  , y le escribes desde el teléfono —o le mandas un audio— sin abrir nada.
+                  {t.onboarding.telegramWhy(
+                    wantsMorning && wantsEvening
+                      ? "both"
+                      : wantsMorning
+                        ? "morning"
+                        : wantsEvening
+                          ? "evening"
+                          : "none"
+                  )}
                 </p>
                 <p className="mt-2.5 text-[14px] leading-relaxed text-ink-2">
-                  Sin eso, esto es una lista más que hay que acordarse de visitar.
+                  {t.onboarding.telegramWithout}
                 </p>
 
                 <div className="mt-5 border-t border-brand/20 pt-5">
@@ -654,22 +666,13 @@ export function OnboardingScreen({
               </div>
 
               <ul className="mt-6 space-y-3">
-                <Bullet icon="↔">
-                  Lo que anotes aquí aparece en Telegram, y lo que le digas a Sydney por Telegram
-                  aparece aquí. Es la misma cuenta.
-                </Bullet>
-                <Bullet icon="🎙">
-                  Mándale un audio por Telegram y lo convierte en tarea. En el computador, el
-                  micrófono de la caja de arriba hace lo mismo.
-                </Bullet>
-                <Bullet icon="＄">
-                  Las deudas van al lado de las tareas: quién te debe, a quién le debes, y en qué
-                  quedó.
-                </Bullet>
+                <Bullet icon="↔">{t.onboarding.bulletSync}</Bullet>
+                <Bullet icon="🎙">{t.onboarding.bulletVoice}</Bullet>
+                <Bullet icon="＄">{t.onboarding.bulletDebts}</Bullet>
               </ul>
 
               <div className="mt-6 rounded-card border border-line bg-raised px-4 py-3.5 text-[13.5px] leading-relaxed text-ink-2">
-                {summaryLine({
+                {summaryLine(t, {
                   hasTask: Boolean(parsed.title.trim()),
                   hasDebt: debtIsUsable,
                   categories: finalCategories.length,
@@ -694,10 +697,10 @@ export function OnboardingScreen({
                 )}
               >
                 {isSaving
-                  ? "Guardando…"
+                  ? t.onboarding.saving
                   : telegramConnected
-                    ? "Listo — entrar"
-                    : "No te preocupes, lo hago más tarde en Ajustes"}
+                    ? t.onboarding.enter
+                    : t.onboarding.laterInSettings}
               </button>
             </>
           )}
@@ -715,11 +718,11 @@ export function OnboardingScreen({
               disabled={step === 0 || isSaving}
               className="rounded-field px-2 py-2.5 text-sm text-ink-3 hover:text-ink disabled:invisible"
             >
-              ← Atrás
+              {t.onboarding.back}
             </button>
 
             <span className="num text-[12.5px] text-ink-3">
-              {step + 1} de {STEPS.length}
+              {t.onboarding.stepOf(step + 1, STEPS.length)}
             </span>
 
             {/* En la última pantalla el botón de entrar vive en el cuerpo, junto
@@ -829,55 +832,41 @@ function BriefToggle({
  *
  * La versión anterior producía "Vas a entrar, con 3 categorías." —coma sin
  * verbo— cuando no había tarea, y decía "categorías" aunque fuera una sola.
+ *
+ * Las piezas y la frase que las une viven en el catálogo, y unir con "y" o con
+ * "and" es del idioma, no de este componente: `list()` recibe el conector.
  */
-function summaryLine({
-  hasTask,
-  hasDebt,
-  categories,
-  wantsMorning,
-  wantsEvening
-}: {
-  hasTask: boolean;
-  hasDebt: boolean;
-  categories: number;
-  wantsMorning: boolean;
-  wantsEvening: boolean;
-}): string {
-  const pieces: string[] = [];
-  if (categories > 0) {
-    pieces.push(categories === 1 ? "1 categoría" : `${categories} categorías`);
+function summaryLine(
+  t: Messages,
+  {
+    hasTask,
+    hasDebt,
+    categories,
+    wantsMorning,
+    wantsEvening
+  }: {
+    hasTask: boolean;
+    hasDebt: boolean;
+    categories: number;
+    wantsMorning: boolean;
+    wantsEvening: boolean;
   }
-  if (hasTask) pieces.push("tu primera tarea ya anotada");
-  if (hasDebt) pieces.push("tu primera deuda registrada");
-  if (wantsMorning && wantsEvening) pieces.push("los resúmenes de la mañana y la noche listos");
-  else if (wantsMorning) pieces.push("el resumen de la mañana listo");
-  else if (wantsEvening) pieces.push("el resumen de la noche listo");
+): string {
+  const pieces: string[] = [];
+  if (categories > 0) pieces.push(t.onboarding.summaryCategories(categories));
+  if (hasTask) pieces.push(t.onboarding.summaryTask);
+  if (hasDebt) pieces.push(t.onboarding.summaryDebt);
+  if (wantsMorning && wantsEvening) pieces.push(t.onboarding.summaryBriefsBoth);
+  else if (wantsMorning) pieces.push(t.onboarding.summaryBriefMorning);
+  else if (wantsEvening) pieces.push(t.onboarding.summaryBriefEvening);
 
-  if (pieces.length === 0) return "Vas a entrar con la cuenta vacía. Todo se configura en Ajustes.";
-  if (pieces.length === 1) return `Vas a entrar con ${pieces[0]}.`;
-  return `Vas a entrar con ${pieces.slice(0, -1).join(", ")} y ${pieces[pieces.length - 1]}.`;
+  if (pieces.length === 0) return t.onboarding.summaryEmpty;
+  return t.onboarding.summary(pieces);
 }
 
 /** "el viernes" dicho como lo diría una persona, no como una fecha ISO. */
-function formatDay(iso: string, today: string): string {
-  if (iso === today) return "hoy";
-  if (iso === addDaysToIsoDate(today, 1)) return "mañana";
-  try {
-    const [year, month, day] = iso.split("-").map(Number);
-    return new Date(year, (month || 1) - 1, day || 1).toLocaleDateString("es-CL", {
-      weekday: "long",
-      day: "numeric",
-      month: "short"
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function nowIn(timeZone: string): string {
-  try {
-    return new Date().toLocaleTimeString("es-CL", { timeZone, hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "—";
-  }
+function formatDay(iso: string, today: string, t: Messages, language: AppLanguage): string {
+  if (iso === today) return t.onboarding.today;
+  if (iso === addDaysToIsoDate(today, 1)) return t.onboarding.tomorrow;
+  return longWeekdayDate(iso, language);
 }

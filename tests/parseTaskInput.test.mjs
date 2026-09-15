@@ -188,3 +188,18 @@ test("the whole dictated sentence, end to end", () => {
   assert.equal(r.dueDate, TODAY);
   assert.equal(r.tipo, "Otros");
 });
+
+test("la categoría también se dice en inglés", () => {
+  const cats = ["Work", "Finanzas", "Otros"];
+  // La palabra suelta, con dos puntos, y precedida de "in the".
+  assert.deepEqual(parseCategoryIn("send the report category work", cats), {
+    tipo: "Work",
+    matchedText: "category work",
+    rest: "send the report"
+  });
+  assert.equal(parseCategoryIn("send the report, category: work", cats).tipo, "Work");
+  assert.equal(parseCategoryIn("pay rent in the category finanzas", cats).tipo, "Finanzas");
+  // Y el español sigue funcionando exactamente igual.
+  assert.equal(parseCategoryIn("mandar el informe, categoría work", cats).tipo, "Work");
+  assert.equal(parseCategoryIn("pagar arriendo en la categoría finanzas", cats).tipo, "Finanzas");
+});

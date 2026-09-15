@@ -58,7 +58,9 @@ const TRANSLATED = [
   "src/components/TelegramConnect.tsx",
   "src/components/TelegramNudge.tsx",
   "src/components/VoiceButton.tsx",
-  "src/components/ui/Toast.tsx"
+  "src/components/ui/Toast.tsx",
+  // Fase 3 — onboarding.
+  "src/components/OnboardingScreen.tsx"
 ];
 
 /**

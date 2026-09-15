@@ -232,8 +232,17 @@ export function parseCategoryIn(
     .map(accentInsensitive)
     .join("|");
 
+  // Los dos idiomas en la misma alternancia, sin mirar la preferencia de nadie.
+  // Es deliberado: la caja de captura acepta lo que se le dicte, y alguien que
+  // tiene la app en español puede escribir "category: work" igual que alguien
+  // en inglés puede escribir "categoría trabajo". Filtrar por preferencia sería
+  // negarle a la persona una frase que entendemos perfectamente.
+  //
+  // El inglés faltaba entero: la versión anterior exigía la palabra literal
+  // "categoría", así que en inglés esta detección no existía — el resto del
+  // parser ya era bilingüe (hoy/today, mañana/tomorrow, los días y los meses).
   const pattern = new RegExp(
-    `(?:,\\s*)?\\b(?:en\\s+(?:la\\s+)?)?categor[i\u00ed]a\\s*:?\\s*(${alternation})\\b`,
+    `(?:,\\s*)?\\b(?:en\\s+(?:la\\s+)?|in\\s+(?:the\\s+)?)?(?:categor[i\u00ed]a|category)\\s*:?\\s*(${alternation})\\b`,
     "iu"
   );
   const match = text.match(pattern);

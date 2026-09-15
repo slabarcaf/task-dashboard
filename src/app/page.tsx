@@ -632,7 +632,6 @@ export default function HomePage() {
   if (needsOnboarding) {
     return (
       <OnboardingScreen
-        language={language}
         initialSelection={userTipoOptions}
         isSaving={isSavingOnboarding}
         error={error}

@@ -9,6 +9,8 @@
 
 import type { Messages } from "@/lib/i18n/messages.es";
 
+import { list, plural } from "@/lib/i18n/plural";
+
 export const en: Messages = {
   meta: {
     title: "Sydney",
@@ -243,6 +245,96 @@ export const en: Messages = {
     addCategory: "Add",
     categoriesFootnote:
       "Removing a category from this list does not delete the tasks that already have it; it just stops being offered when creating one."
+  },
+  onboarding: {
+    heroTitle: "Five minutes, and Sydney knows you.",
+    heroBlurb:
+      "None of this is set in stone: all of it changes later in Settings. We ask now so that day one already works.",
+    heroFooter: "Here or on Telegram, it makes no difference: same account, same list.",
+    progress: "Progress",
+    back: "← Back",
+    next: "Continue",
+    skip: "Skip",
+    stepOf: (current: number, total: number) => `${current} of ${total}`,
+    steps: {
+      categories: { label: "Categories", eyebrow: "How your life is sorted" },
+      briefs: { label: "Times", eyebrow: "When your summary arrives" },
+      task: { label: "Your first task", eyebrow: "Write it the way you would say it" },
+      debt: { label: "Your first debt", eyebrow: "Who owes you, who you owe" },
+      done: { label: "Done", eyebrow: "What is left for this to work" }
+    },
+    categoriesTitle: "What parts does your life split into?",
+    categoriesHint:
+      "Pick the ones you actually use. They group your tasks, and you can change them whenever you want.",
+    customPlaceholder: "Missing one? Write it here",
+    customAdd: "Add",
+    inventedTitle: "Yours",
+    inventedRemove: "Remove",
+    briefsTitle: "When should I send you the day's summary?",
+    briefsHint:
+      "Two messages on Telegram, no more: in the morning what is coming today, in the evening what is still open. You can turn either one off.",
+    timezoneLabel: "Your time zone",
+    timezoneNow: (time: string) => `It is ${time} there right now.`,
+    morningLabel: "☀ Morning summary",
+    morningHint: "What is due today and what is coming",
+    eveningLabel: "☾ Evening summary",
+    eveningHint: "What is still undone and what is due tomorrow",
+    noBriefs:
+      "With neither one, Sydney will not write to you on her own. You can continue and turn them on later in Settings.",
+    taskTitle: "Write your first task",
+    taskHint:
+      "The way you would say it to a person. If you mention when it is or what it is about, it is understood on its own — try “pay the electricity bill friday” or “send the report, category work”.",
+    taskPlaceholder: "pay the electricity bill friday",
+    understood: "I understood:",
+    categoryLabel: "Category:",
+    previewTaskTitle: "This is how it will look — try it",
+    previewTaskHintFull:
+      "Hover over it: the buttons really work, and whatever you leave set is saved with the task.",
+    previewTaskHintEmpty: "With no date in the sentence, it lands on today.",
+    today: "today",
+    tomorrow: "tomorrow",
+    debtTitle: "Does anyone owe you anything?",
+    debtHint:
+      "Sydney also keeps track of money: what you are owed and what you owe, with whom and what for. If none comes to mind right now, skip it.",
+    debtWhoOwesMe: "Who owes you?",
+    debtWhoIOwe: "Who do you owe?",
+    debtAmount: "How much?",
+    debtReason: "What for? (optional)",
+    previewDebtTitle: "This is how it will look",
+    previewDebtHint: "You can mark it as paid later, here or by telling Sydney on Telegram.",
+    doneTitle: "That is it. One thing left.",
+    doneHint:
+      "Your tasks and your debts already live in your account. What is missing is the half that comes looking for you.",
+    telegramPitch: "✈ Connect Telegram, or Sydney stays mute.",
+    telegramWhy: (briefs: "both" | "morning" | "evening" | "none") => {
+      const which =
+        briefs === "both"
+          ? "the morning one and the evening one"
+          : briefs === "morning"
+            ? "the morning one"
+            : briefs === "evening"
+              ? "the evening one"
+              : "the daily one";
+      return `This page is where you look at your tasks when you remember to look. Telegram is where Sydney comes looking for you: she sends you the summary — ${which} — and you write to her from your phone, or send her a voice note, without opening anything.`;
+    },
+    telegramWithout: "Without that, this is one more list you have to remember to visit.",
+    bulletSync:
+      "What you write here shows up on Telegram, and what you tell Sydney on Telegram shows up here. Same account.",
+    bulletVoice:
+      "Send her a voice note on Telegram and she turns it into a task. On a computer, the microphone in the box above does the same.",
+    bulletDebts:
+      "Debts sit next to the tasks: who owes you, who you owe, and how it ended up.",
+    summaryEmpty: "You will go in with an empty account. Everything is set up in Settings.",
+    summary: (pieces: string[]) => `You will go in with ${list(pieces, "and")}.`,
+    summaryCategories: (n: number) => `${n} ${plural(n, "category", "categories")}`,
+    summaryTask: "your first task already written down",
+    summaryDebt: "your first debt recorded",
+    summaryBriefsBoth: "the morning and evening summaries ready",
+    summaryBriefMorning: "the morning summary ready",
+    summaryBriefEvening: "the evening summary ready",
+    saving: "Saving…",
+    enter: "Done — go in",
+    laterInSettings: "Do not worry, I will do it later in Settings"
   },
   errors: {
     signIn: "Could not sign in.",

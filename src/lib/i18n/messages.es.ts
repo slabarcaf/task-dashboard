@@ -24,6 +24,8 @@
  * viaja intacto. Ver `src/lib/categories.ts`.
  */
 
+import { list, plural } from "@/lib/i18n/plural";
+
 export const es = {
   meta: {
     title: "Sydney",
@@ -267,6 +269,99 @@ export const es = {
     addCategory: "Agregar",
     categoriesFootnote:
       "Quitar una categoría de esta lista no borra las tareas que ya la tienen; solo deja de ofrecerse al crear."
+  },
+  onboarding: {
+    heroTitle: "Cinco minutos, y Sydney te conoce.",
+    heroBlurb:
+      "Nada de esto queda escrito en piedra: todo se cambia después en Ajustes. Lo preguntamos ahora para que el primer día ya sirva.",
+    heroFooter: "Aquí o en Telegram, da igual: es la misma cuenta y la misma lista.",
+    progress: "Progreso",
+    back: "← Atrás",
+    next: "Seguir",
+    skip: "Saltar",
+    stepOf: (current: number, total: number) => `${current} de ${total}`,
+    steps: {
+      categories: { label: "Categorías", eyebrow: "Cómo se ordena tu vida" },
+      briefs: { label: "Horarios", eyebrow: "Cuándo te llega el resumen" },
+      task: { label: "Tu primera tarea", eyebrow: "Escríbela como la dirías" },
+      debt: { label: "Tu primera deuda", eyebrow: "Quién te debe, a quién le debes" },
+      done: { label: "Listo", eyebrow: "Lo que falta para que funcione" }
+    },
+    categoriesTitle: "¿En qué partes se divide tu vida?",
+    categoriesHint:
+      "Elige las que uses de verdad. Sirven para agrupar tus tareas, y puedes cambiarlas cuando quieras.",
+    customPlaceholder: "¿Falta alguna? Escríbela aquí",
+    customAdd: "Agregar",
+    inventedTitle: "Tuyas",
+    inventedRemove: "Quitar",
+    briefsTitle: "¿Cuándo te mando el resumen del día?",
+    briefsHint:
+      "Dos mensajes por Telegram, no más: en la mañana lo que viene hoy, en la noche lo que quedó pendiente. Puedes apagar cualquiera de los dos.",
+    timezoneLabel: "Tu zona horaria",
+    timezoneNow: (time: string) => `Ahí son las ${time} ahora mismo.`,
+    morningLabel: "☀ Resumen de la mañana",
+    morningHint: "Lo que vence hoy y lo que viene",
+    eveningLabel: "☾ Resumen de la noche",
+    eveningHint: "Lo que quedó sin hacer y lo de mañana",
+    noBriefs:
+      "Sin ninguno de los dos, Sydney no te va a escribir sola. Puedes seguir y encenderlos después en Ajustes.",
+    taskTitle: "Escribe tu primera tarea",
+    taskHint:
+      "Como se la dirías a una persona. Si mencionas cuándo o de qué es, se entiende solo — prueba con “pagar la luz el viernes” o “mandar el informe, categoría trabajo”.",
+    taskPlaceholder: "pagar la luz el viernes",
+    understood: "Entendí:",
+    categoryLabel: "Categoría:",
+    previewTaskTitle: "Así se va a ver — pruébala",
+    previewTaskHintFull:
+      "Pasa el mouse por encima: los botones funcionan de verdad, y lo que dejes marcado se guarda con la tarea.",
+    previewTaskHintEmpty: "Sin fecha en la frase, queda para hoy.",
+    today: "hoy",
+    tomorrow: "mañana",
+    debtTitle: "¿Alguien te debe algo?",
+    debtHint:
+      "Sydney también lleva la cuenta de las platas: lo que te deben y lo que debes, con quién y por qué. Si no se te ocurre ninguna ahora, sáltala.",
+    debtWhoOwesMe: "¿Quién te debe?",
+    debtWhoIOwe: "¿A quién le debes?",
+    debtAmount: "¿Cuánto?",
+    debtReason: "¿Por qué? (opcional)",
+    previewDebtTitle: "Así se va a ver",
+    previewDebtHint:
+      "Después puedes marcarla como pagada, aquí o diciéndoselo a Sydney por Telegram.",
+    doneTitle: "Ya está. Falta una cosa.",
+    doneHint:
+      "Tus tareas y tus deudas ya viven en tu cuenta. Lo que falta es la mitad que te busca a ti.",
+    telegramPitch: "✈ Conecta Telegram, o Sydney se queda muda.",
+    // Una función y no una plantilla con hueco: el trozo variable cambia de
+    // número gramatical entre idiomas, y una plantilla no puede con eso.
+    telegramWhy: (briefs: "both" | "morning" | "evening" | "none") => {
+      const which =
+        briefs === "both"
+          ? "de la mañana y el de la noche"
+          : briefs === "morning"
+            ? "de la mañana"
+            : briefs === "evening"
+              ? "de la noche"
+              : "del día";
+      return `Esta página es donde miras tus tareas cuando te acuerdas de mirarlas. Telegram es donde Sydney te busca a ti: te manda el resumen ${which}, y le escribes desde el teléfono —o le mandas un audio— sin abrir nada.`;
+    },
+    telegramWithout: "Sin eso, esto es una lista más que hay que acordarse de visitar.",
+    bulletSync:
+      "Lo que anotes aquí aparece en Telegram, y lo que le digas a Sydney por Telegram aparece aquí. Es la misma cuenta.",
+    bulletVoice:
+      "Mándale un audio por Telegram y lo convierte en tarea. En el computador, el micrófono de la caja de arriba hace lo mismo.",
+    bulletDebts:
+      "Las deudas van al lado de las tareas: quién te debe, a quién le debes, y en qué quedó.",
+    summaryEmpty: "Vas a entrar con la cuenta vacía. Todo se configura en Ajustes.",
+    summary: (pieces: string[]) => `Vas a entrar con ${list(pieces, "y")}.`,
+    summaryCategories: (n: number) => `${n} ${plural(n, "categoría", "categorías")}`,
+    summaryTask: "tu primera tarea ya anotada",
+    summaryDebt: "tu primera deuda registrada",
+    summaryBriefsBoth: "los resúmenes de la mañana y la noche listos",
+    summaryBriefMorning: "el resumen de la mañana listo",
+    summaryBriefEvening: "el resumen de la noche listo",
+    saving: "Guardando…",
+    enter: "Listo — entrar",
+    laterInSettings: "No te preocupes, lo hago más tarde en Ajustes"
   },
   errors: {
     signIn: "No se pudo entrar.",
