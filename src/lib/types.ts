@@ -22,6 +22,9 @@ export const TIPO_OPTIONS = [
  */
 export { CANONICAL_CATEGORIES, CANONICAL_CATEGORIES as ONBOARDING_SUGGESTED_TIPOS } from "@/lib/categories";
 
+import type { AppLanguage } from "@/lib/language";
+export type { AppLanguage } from "@/lib/language";
+
 export type StatusFinalOutcome = (typeof STATUS_FINAL_OUTCOME_OPTIONS)[number];
 export type Tipo = (typeof TIPO_OPTIONS)[number];
 
@@ -80,7 +83,8 @@ export type AuthGoogleResponse = {
 export type UserPreferences = {
   onboardingCompleted: boolean;
   tipoOptions: string[];
-  language: string;
+  /** Garantizado por `normalizeLanguage` en el servidor, no solo prometido acá. */
+  language: AppLanguage;
   timezone: string;
   briefMorning: string;
   briefEvening: string;

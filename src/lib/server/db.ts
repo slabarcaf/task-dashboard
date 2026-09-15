@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { Pool } from "pg";
+import { normalizeLanguage, type AppLanguage } from "@/lib/language";
 
 type TaskRow = {
   id: number;
@@ -58,7 +59,7 @@ export type DbUser = {
 export type DbUserPreferences = {
   onboardingCompleted: boolean;
   tipoOptions: string[];
-  language: string;
+  language: AppLanguage;
   timezone: string;
   briefMorning: string;
   briefEvening: string;
@@ -759,7 +760,11 @@ export async function getUserPreferencesByUserId(userId: number): Promise<DbUser
 /** The columns that need no repair, shaped for the API. */
 function readPreferenceScalars(row: UserPreferencesRow) {
   return {
-    language: row.language || "es",
+    // `normalizeLanguage` y no `|| "es"`: ninguna de las dos columnas (Postgres
+    // ni la SQLite del bot) tiene CHECK, así que una fila vieja puede traer
+    // cualquier cosa. El tipo de arriba dice "es" | "en" — esta línea es lo que
+    // lo vuelve cierto en vez de una promesa.
+    language: normalizeLanguage(row.language),
     timezone: row.timezone || "America/Los_Angeles",
     // `??`, not `||`. The empty string is a real value here — it is how a brief
     // is turned off — and `||` coerced it straight back to the default, so the

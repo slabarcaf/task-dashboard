@@ -26,7 +26,9 @@ export const CANONICAL_CATEGORIES = [
   "Otros"
 ] as const;
 
-export type AppLanguage = "es" | "en";
+import type { AppLanguage } from "@/lib/language";
+
+export type { AppLanguage } from "@/lib/language";
 
 const CATEGORY_LABELS: Record<string, Record<AppLanguage, string>> = {
   Work: { es: "Trabajo", en: "Work" },

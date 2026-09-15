@@ -1,3 +1,4 @@
+import type { AppLanguage } from "@/lib/language";
 import {
   AddTaskPayload,
   AddTaskResponse,
@@ -239,7 +240,7 @@ export async function disconnectTelegram(): Promise<void> {
 
 export type PreferencePatch = {
   tipoOptions?: string[];
-  language?: "es" | "en";
+  language?: AppLanguage;
   timezone?: string;
   briefMorning?: string;
   briefEvening?: string;
