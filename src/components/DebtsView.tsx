@@ -4,6 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { EmptyState, TaskSection } from "@/components/TaskSection";
 import { cn } from "@/lib/cn";
 import { formatShortDate } from "@/lib/date";
+import { money } from "@/lib/i18n/format";
+import { useLanguage, useT } from "@/lib/i18n/provider";
 import { Debt } from "@/lib/api";
 
 type DebtsViewProps = {
@@ -36,6 +38,8 @@ export function DebtsView({
   onToggleStatus,
   onDelete
 }: DebtsViewProps) {
+  const t = useT();
+  const language = useLanguage();
   const open = debts.filter((debt) => debt.status !== "Pagado");
   const paid = debts.filter((debt) => debt.status === "Pagado");
   const theyOwe = open.filter((debt) => debt.direction === "Me deben");
@@ -53,7 +57,7 @@ export function DebtsView({
   }, [open]);
 
   if (isLoading) {
-    return <p className="py-12 text-center text-sm text-ink-3">Cargando tus deudas…</p>;
+    return <p className="py-12 text-center text-sm text-ink-3">{t.debts.loading}</p>;
   }
 
   return (
@@ -75,12 +79,12 @@ export function DebtsView({
               <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
                 {owed > 0 && (
                   <span className="num text-sm text-ink-2">
-                    Te deben <b className="text-ok">{money(owed, currency)}</b>
+                    {t.debts.owedTo} <b className="text-ok">{money(owed, currency, language)}</b>
                   </span>
                 )}
                 {owing > 0 && (
                   <span className="num text-sm text-ink-2">
-                    Debes <b className="text-late">{money(owing, currency)}</b>
+                    {t.debts.owing} <b className="text-late">{money(owing, currency, language)}</b>
                   </span>
                 )}
               </div>
@@ -92,13 +96,13 @@ export function DebtsView({
       {debts.length === 0 ? (
         <EmptyState
           icon="🧾"
-          title="No hay deudas anotadas"
-          hint="Anota aquí lo que te deben y lo que debes. También puedes decírselo a Sydney por Telegram."
+          title={t.debts.emptyTitle}
+          hint={t.debts.emptyHint}
         />
       ) : (
         <>
           {theyOwe.length > 0 && (
-            <TaskSection title="Te deben" count={theyOwe.length}>
+            <TaskSection title={t.debts.theyOwe} count={theyOwe.length}>
               {theyOwe.map((debt) => (
                 <DebtRow
                   key={debt.id}
@@ -111,7 +115,7 @@ export function DebtsView({
             </TaskSection>
           )}
           {iOwe.length > 0 && (
-            <TaskSection title="Debes" count={iOwe.length} tone="late">
+            <TaskSection title={t.debts.youOwe} count={iOwe.length} tone="late">
               {iOwe.map((debt) => (
                 <DebtRow
                   key={debt.id}
@@ -124,7 +128,7 @@ export function DebtsView({
             </TaskSection>
           )}
           {paid.length > 0 && (
-            <TaskSection title="Saldadas" count={paid.length}>
+            <TaskSection title={t.debts.settled} count={paid.length}>
               {paid.map((debt) => (
                 <DebtRow
                   key={debt.id}
@@ -153,6 +157,8 @@ function DebtRow({
   onToggleStatus: (debt: Debt) => void;
   onDelete: (debt: Debt) => void;
 }) {
+  const t = useT();
+  const language = useLanguage();
   const isPaid = debt.status === "Pagado";
   return (
     <article
@@ -170,7 +176,7 @@ function DebtRow({
           type="button"
           role="checkbox"
           aria-checked={isPaid}
-          aria-label={isPaid ? "Marcar como pendiente" : "Marcar como pagada"}
+          aria-label={isPaid ? t.debts.markPending : t.debts.markPaid}
           onClick={() => onToggleStatus(debt)}
           className={cn(
             "h-[18px] w-[18px] flex-none rounded-full border-[1.7px] transition-colors",
@@ -201,18 +207,18 @@ function DebtRow({
             isPaid ? "text-ink-3" : debt.direction === "Me deben" ? "text-ok" : "text-late"
           )}
         >
-          {money(debt.amount, debt.currency)}
+          {money(debt.amount, debt.currency, language)}
         </span>
         <span className="num text-[11.5px] text-ink-3">
-          {formatShortDate(debt.createdAt.slice(0, 10), "es")}
+          {formatShortDate(debt.createdAt.slice(0, 10), language)}
         </span>
       </div>
 
       <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-field border border-line bg-surface opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <button
           type="button"
-          title="Eliminar"
-          aria-label="Eliminar"
+          title={t.debts.delete}
+          aria-label={t.debts.delete}
           onClick={() => onDelete(debt)}
           className="grid h-[29px] w-[29px] place-items-center rounded-field text-[15px] leading-none text-ink-2 transition-colors hover:bg-raised hover:text-ink"
         >
@@ -224,6 +230,7 @@ function DebtRow({
 }
 
 function DebtForm({ onAdd }: { onAdd: DebtsViewProps["onAdd"] }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("USD");
@@ -262,22 +269,24 @@ function DebtForm({ onAdd }: { onAdd: DebtsViewProps["onAdd"] }) {
               direction === option ? "bg-surface text-ink shadow-card" : "text-ink-3 hover:text-ink-2"
             )}
           >
-            {option}
+            {/* El valor guardado sigue siendo "Me deben" / "Debo yo": va a
+                Postgres y lo lee el bot. Acá solo cambia lo que se lee. */}
+            {option === "Me deben" ? t.debts.directionTheyOwe : t.debts.directionIOwe}
           </button>
         ))}
       </div>
       <input
         value={name}
         onChange={(event) => setName(event.target.value)}
-        placeholder="¿Quién?"
-        aria-label="Nombre"
+        placeholder={t.debts.whoPlaceholder}
+        aria-label={t.debts.whoLabel}
         className="min-w-[7rem] flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3"
       />
       <input
         value={reason}
         onChange={(event) => setReason(event.target.value)}
-        placeholder="¿Por qué? (opcional)"
-        aria-label="Motivo"
+        placeholder={t.debts.whyPlaceholder}
+        aria-label={t.debts.whyLabel}
         className="min-w-[7rem] flex-1 bg-transparent text-[13.5px] text-ink-2 outline-none placeholder:text-ink-3"
       />
       <input
@@ -285,13 +294,13 @@ function DebtForm({ onAdd }: { onAdd: DebtsViewProps["onAdd"] }) {
         onChange={(event) => setAmount(event.target.value)}
         inputMode="decimal"
         placeholder="0"
-        aria-label="Monto"
+        aria-label={t.debts.amountLabel}
         className="num w-20 flex-none rounded-field border border-line bg-sunken px-2 py-1 text-right text-[13px] text-ink outline-none"
       />
       <select
         value={currency}
         onChange={(event) => setCurrency(event.target.value)}
-        aria-label="Moneda"
+        aria-label={t.debts.currencyLabel}
         className="flex-none rounded-field border border-line bg-sunken px-2 py-1 text-[12.5px] font-semibold text-ink-2 outline-none"
       >
         {["USD", "CLP", "EUR"].map((option) => (
@@ -305,17 +314,9 @@ function DebtForm({ onAdd }: { onAdd: DebtsViewProps["onAdd"] }) {
         disabled={busy || !name.trim() || !amount.trim()}
         className="ml-auto flex-none rounded-field bg-brand px-3 py-1.5 text-[13px] font-semibold text-brand-ink disabled:cursor-not-allowed disabled:opacity-40 sm:ml-0"
       >
-        {busy ? "…" : "Anotar"}
+        {busy ? "…" : t.debts.add}
       </button>
     </form>
   );
 }
 
-/** Sin decimales cuando no los necesita: "94 USD" y no "94.00 USD". */
-function money(amount: number, currency: string): string {
-  const rounded = Math.round(amount * 100) / 100;
-  const text = Number.isInteger(rounded)
-    ? rounded.toLocaleString("es-CL")
-    : rounded.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${text} ${currency}`;
-}

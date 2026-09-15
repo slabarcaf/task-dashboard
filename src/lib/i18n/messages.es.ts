@@ -166,6 +166,108 @@ export const es = {
     debtDeleted: "Eliminada",
     debtPaid: "Marcada como pagada"
   },
+  debts: {
+    loading: "Cargando tus deudas…",
+    theyOwe: "Te deben",
+    youOwe: "Debes",
+    settled: "Saldadas",
+    owedTo: "Te deben",
+    owing: "Debes",
+    emptyTitle: "No hay deudas anotadas",
+    emptyHint:
+      "Anota aquí lo que te deben y lo que debes. También puedes decírselo a Sydney por Telegram.",
+    markPaid: "Marcar como pagada",
+    markPending: "Marcar como pendiente",
+    delete: "Eliminar",
+    // Rótulos de las dos direcciones. El valor guardado sigue siendo
+    // "Me deben" / "Debo yo" — acá solo cambia lo que se lee.
+    directionTheyOwe: "Me deben",
+    directionIOwe: "Debo yo",
+    whoPlaceholder: "¿Quién?",
+    whoLabel: "Nombre",
+    whyPlaceholder: "¿Por qué? (opcional)",
+    whyLabel: "Motivo",
+    amountLabel: "Monto",
+    currencyLabel: "Moneda",
+    add: "Anotar"
+  },
+  voice: {
+    record: "Grabar una nota de voz",
+    releaseAria: "Soltar para transcribir",
+    holdTitle: "Mantén pulsado para grabar",
+    releaseTitle: "Suelta para transcribir",
+    notConfigured: "Las notas de voz no están configuradas todavía (falta OPENAI_API_KEY).",
+    failed: "No se pudo transcribir.",
+    nothingHeard: "No se entendió nada. Intenta de nuevo, más cerca del micrófono.",
+    micDenied:
+      "El navegador no dio permiso al micrófono. Habilítalo para este sitio y vuelve a intentar.",
+    micFailed: "No se pudo abrir el micrófono."
+  },
+  telegram: {
+    connected: "✓ Telegram conectado",
+    connectedHint: "Ya puedes escribirle. Los resúmenes empiezan mañana.",
+    connect: "Conectar Telegram",
+    generating: "Generando…",
+    codeFailed: "No se pudo generar el código.",
+    qrAlt: "Código QR para abrir el chat de Sydney en Telegram",
+    openAndConnect: "Abrir Telegram y conectar",
+    onComputerBold: "¿Estás en el computador?",
+    onComputerRest: " Escanea el código con la cámara del teléfono. Ahí es donde te va a servir el chat.",
+    cannotScanBefore: "¿No puedes escanear? Escríbele a ",
+    cannotScanAfter: " en Telegram:",
+    codeLifeBefore: "El código sirve por 24 horas. ",
+    codeLifeBold: "Si no tienes Telegram",
+    codeLifeAfter:
+      ", el enlace te lleva a instalarlo — hace falta un número de teléfono — y después vuelves a tocarlo para terminar.",
+    nudgeTitle: "Te falta conectar Telegram",
+    nudgeBody:
+      "Ahí es donde le escribes a Sydney y donde llegan tus dos mensajes del día. Es la misma cuenta: las mismas tareas y las mismas deudas, en los dos lados.",
+    nudgeConnect: "Conectar",
+    nudgeLater: "Ahora no",
+    nudgeClose: "Cerrar"
+  },
+  settings: {
+    eyebrow: "ajustes",
+    title: "Ajustes",
+    backToTasks: "← Mis tareas",
+    loading: "Cargando…",
+    signedOut: "Necesitas iniciar sesión.",
+    goToSignIn: "Ir al acceso",
+    saved: (what: string) => `${what} guardado`,
+    saveFailed: "No se pudo guardar.",
+    telegramTitle: "Telegram",
+    telegramHint:
+      "Aquí es donde Sydney vive. La web es para mirar y ordenar; hablar con ella es allá — y desde el teléfono, las notas de voz también: el micrófono de la web solo aparece en el computador.",
+    telegramConnected: "✓ Conectado",
+    openChat: "Abrir el chat",
+    disconnect: "Desconectar",
+    disconnected: "Telegram desconectado",
+    disconnectFailed: "No se pudo desconectar.",
+    telegramMissing:
+      "Todavía no has conectado Telegram. Mientras no lo hagas no recibirás los briefs de la mañana y la noche, y no puedes escribirle a Sydney.",
+    languageTitle: "Idioma",
+    languageHint:
+      "El idioma de la app y el idioma en que Sydney te responde en el chat. No cambia el idioma de la app de Telegram — eso es de tu teléfono.",
+    briefsTitle: "Tus dos mensajes del día",
+    briefsHint:
+      "Llegan por Telegram, siempre. No hay versión web de esto a propósito: un resumen que tienes que ir a buscar no es un resumen.",
+    briefsNeedTelegram: "Conecta Telegram arriba para que estos horarios sirvan de algo.",
+    briefMorning: "☀ En la mañana",
+    briefEvening: "☾ En la noche",
+    briefsOffHint: "Déjalo vacío para apagar uno de los dos.",
+    timezoneTitle: "Zona horaria",
+    timezoneHint: "Define a qué hora real llegan los briefs y qué día es “hoy”.",
+    timeNow: (time: string) => `ahora son las ${time}`,
+    categoriesTitle: "Categorías",
+    categoriesHint:
+      "Con estas se agrupan tus tareas, aquí y en Telegram. También aparecen solas cuando creas una tarea con una categoría nueva.",
+    removeCategory: (name: string) => `Quitar ${name}`,
+    lastCategory: "Tiene que quedar al menos una",
+    addCategoryPlaceholder: "Agregar una categoría",
+    addCategory: "Agregar",
+    categoriesFootnote:
+      "Quitar una categoría de esta lista no borra las tareas que ya la tienen; solo deja de ofrecerse al crear."
+  },
   errors: {
     signIn: "No se pudo entrar.",
     noCredential: "Google no devolvió una credencial.",

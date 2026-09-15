@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n/provider";
 
 type VoiceButtonProps = {
   disabled?: boolean;
@@ -32,6 +33,7 @@ const MIN_MS = 350;
  * voz: la persona la descubre el día que el recordatorio no llega.
  */
 export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProps) {
+  const t = useT();
   const [state, setState] = useState<State>("idle");
   const [elapsed, setElapsed] = useState(0);
   // Empieza en false y se enciende tras comprobar: así el teléfono no ve
@@ -100,23 +102,23 @@ export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProp
         if (!response.ok || !data.ok) {
           onError(
             data.error === "not_configured"
-              ? "Las notas de voz no están configuradas todavía (falta OPENAI_API_KEY)."
-              : data.error || "No se pudo transcribir."
+              ? t.voice.notConfigured
+              : data.error || t.voice.failed
           );
           return;
         }
         if (!data.text) {
-          onError("No se entendió nada. Intenta de nuevo, más cerca del micrófono.");
+          onError(t.voice.nothingHeard);
           return;
         }
         onTranscript(data.text);
       } catch {
-        onError("No se pudo transcribir.");
+        onError(t.voice.failed);
       } finally {
         setState("idle");
       }
     },
-    [onError, onTranscript]
+    [onError, onTranscript, t]
   );
 
   const stop = useCallback(() => {
@@ -159,13 +161,11 @@ export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProp
     } catch (error) {
       const denied = error instanceof Error && /denied|NotAllowed/i.test(error.name + error.message);
       onError(
-        denied
-          ? "El navegador no dio permiso al micrófono. Habilítalo para este sitio y vuelve a intentar."
-          : "No se pudo abrir el micrófono."
+        denied ? t.voice.micDenied : t.voice.micFailed
       );
       setState("idle");
     }
-  }, [cleanup, disabled, onError, state, stop, transcribe]);
+  }, [cleanup, disabled, onError, state, stop, t, transcribe]);
 
   if (!supported) return null;
 
@@ -176,8 +176,8 @@ export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProp
     <button
       type="button"
       disabled={disabled || busy}
-      aria-label={recording ? "Soltar para transcribir" : "Grabar una nota de voz"}
-      title={recording ? "Suelta para transcribir" : "Mantén pulsado para grabar"}
+      aria-label={recording ? t.voice.releaseAria : t.voice.record}
+      title={recording ? t.voice.releaseTitle : t.voice.holdTitle}
       // pointer* y no mouse*: cubre dedo, mouse y lápiz con un solo camino.
       onPointerDown={(event) => {
         event.preventDefault();

@@ -144,6 +144,106 @@ export const en: Messages = {
     debtDeleted: "Deleted",
     debtPaid: "Marked as paid"
   },
+  debts: {
+    loading: "Loading your debts…",
+    theyOwe: "Owed to you",
+    youOwe: "You owe",
+    settled: "Settled",
+    owedTo: "You are owed",
+    owing: "You owe",
+    emptyTitle: "No debts recorded",
+    emptyHint:
+      "Keep track here of what you are owed and what you owe. You can also tell Sydney on Telegram.",
+    markPaid: "Mark as paid",
+    markPending: "Mark as unpaid",
+    delete: "Delete",
+    directionTheyOwe: "They owe me",
+    directionIOwe: "I owe",
+    whoPlaceholder: "Who?",
+    whoLabel: "Name",
+    whyPlaceholder: "What for? (optional)",
+    whyLabel: "Reason",
+    amountLabel: "Amount",
+    currencyLabel: "Currency",
+    add: "Record"
+  },
+  voice: {
+    record: "Record a voice note",
+    releaseAria: "Release to transcribe",
+    holdTitle: "Hold to record",
+    releaseTitle: "Release to transcribe",
+    notConfigured: "Voice notes are not set up yet (OPENAI_API_KEY is missing).",
+    failed: "Could not transcribe it.",
+    nothingHeard: "Nothing came through. Try again, closer to the microphone.",
+    micDenied:
+      "The browser did not grant microphone access. Enable it for this site and try again.",
+    micFailed: "Could not open the microphone."
+  },
+  telegram: {
+    connected: "✓ Telegram connected",
+    connectedHint: "You can write to her now. Your summaries start tomorrow.",
+    connect: "Connect Telegram",
+    generating: "Generating…",
+    codeFailed: "Could not generate the code.",
+    qrAlt: "QR code to open the Sydney chat on Telegram",
+    openAndConnect: "Open Telegram and connect",
+    onComputerBold: "On a computer?",
+    onComputerRest: " Scan the code with your phone camera. That is where the chat will be useful.",
+    cannotScanBefore: "Cannot scan? Write to ",
+    cannotScanAfter: " on Telegram:",
+    codeLifeBefore: "The code lasts 24 hours. ",
+    codeLifeBold: "If you do not have Telegram",
+    codeLifeAfter:
+      ", the link takes you to install it — a phone number is required — and then you tap it again to finish.",
+    nudgeTitle: "Telegram is not connected yet",
+    nudgeBody:
+      "That is where you write to Sydney and where your two daily messages arrive. Same account: the same tasks and the same debts on both sides.",
+    nudgeConnect: "Connect",
+    nudgeLater: "Not now",
+    nudgeClose: "Close"
+  },
+  settings: {
+    eyebrow: "settings",
+    title: "Settings",
+    backToTasks: "← My tasks",
+    loading: "Loading…",
+    signedOut: "You need to sign in.",
+    goToSignIn: "Go to sign-in",
+    saved: (what: string) => `${what} saved`,
+    saveFailed: "Could not save.",
+    telegramTitle: "Telegram",
+    telegramHint:
+      "This is where Sydney lives. The web is for looking and sorting; talking to her happens over there — and so do voice notes from your phone: the web microphone only shows up on a computer.",
+    telegramConnected: "✓ Connected",
+    openChat: "Open the chat",
+    disconnect: "Disconnect",
+    disconnected: "Telegram disconnected",
+    disconnectFailed: "Could not disconnect.",
+    telegramMissing:
+      "You have not connected Telegram yet. Until you do you will not get the morning and evening briefs, and you cannot write to Sydney.",
+    languageTitle: "Language",
+    languageHint:
+      "The language of the app, and the language Sydney answers in on the chat. It does not change the language of the Telegram app — that one is your phone's.",
+    briefsTitle: "Your two messages a day",
+    briefsHint:
+      "They always arrive on Telegram. There is deliberately no web version: a summary you have to go looking for is not a summary.",
+    briefsNeedTelegram: "Connect Telegram above for these times to mean anything.",
+    briefMorning: "☀ In the morning",
+    briefEvening: "☾ In the evening",
+    briefsOffHint: "Leave one empty to turn it off.",
+    timezoneTitle: "Time zone",
+    timezoneHint: "Sets what real time the briefs arrive and which day counts as “today”.",
+    timeNow: (time: string) => `it is ${time} there now`,
+    categoriesTitle: "Categories",
+    categoriesHint:
+      "These group your tasks, here and on Telegram. They also appear on their own when you create a task with a new category.",
+    removeCategory: (name: string) => `Remove ${name}`,
+    lastCategory: "At least one has to stay",
+    addCategoryPlaceholder: "Add a category",
+    addCategory: "Add",
+    categoriesFootnote:
+      "Removing a category from this list does not delete the tasks that already have it; it just stops being offered when creating one."
+  },
   errors: {
     signIn: "Could not sign in.",
     noCredential: "Google did not return a credential.",

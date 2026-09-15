@@ -13,7 +13,8 @@ import {
 import { categoryLabel } from "@/lib/categories";
 import { categoryHue } from "@/lib/categoryColor";
 import { cn } from "@/lib/cn";
-import { useSetLanguage } from "@/lib/i18n/provider";
+import { useLanguage, useSetLanguage, useT } from "@/lib/i18n/provider";
+import { timeInZone } from "@/lib/i18n/format";
 import { AuthUser, UserPreferences } from "@/lib/types";
 
 /**
@@ -28,15 +29,39 @@ import { AuthUser, UserPreferences } from "@/lib/types";
  *
  * Which is also why the language control says what it says. We cannot change the
  * language of the Telegram app — that is the person's phone. What we control is
- * the language Sydney answers in, and that is what this changes.
+ * the app, and the language Sydney answers in.
  */
+
+/**
+ * La llave de cada ajuste. **Estable y en inglés a propósito.**
+ *
+ * Antes se usaba el rótulo visible como llave del estado `busy`
+ * (`busy === "Idioma"`), lo que funcionaba sólo mientras hubiera un idioma:
+ * traducido, el botón de guardar nunca se habría deshabilitado. Una llave que
+ * cambia con el idioma no es una llave.
+ */
+type SettingKey = "telegram" | "language" | "briefs" | "timezone" | "categories";
+
+/**
+ * Lo que dice el aviso verde, guardado como **llave y no como texto ya
+ * dibujado**.
+ *
+ * Es la misma regla que `SettingKey`, y esta la pagó el idioma: guardar el
+ * string hacía que cambiar a español dejara un "Language saved" en inglés sobre
+ * una pantalla ya traducida. El `t` del closure era el de antes del cambio.
+ * Un texto guardado en el estado es un texto congelado en el idioma de ese
+ * instante; la llave se dibuja con el catálogo vigente.
+ */
+type Note = { kind: "saved"; setting: SettingKey } | { kind: "disconnected" };
 export default function SettingsPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "signed_out">("loading");
+  const t = useT();
+  const language = useLanguage();
   const setLanguage = useSetLanguage();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState<SettingKey | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const [newCategory, setNewCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -48,17 +73,26 @@ export default function SettingsPage() {
       setPrefs(await getUserPreferences());
       setState("ready");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "No se pudo cargar.");
+      setError(loadError instanceof Error ? loadError.message : t.settings.saveFailed);
       setState("ready");
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const save = async (patch: Parameters<typeof updatePreferences>[0], label: string) => {
-    setBusy(label);
+  /** El rótulo del aviso "X guardado", por llave. */
+  const settingTitle: Record<SettingKey, string> = {
+    telegram: t.settings.telegramTitle,
+    language: t.settings.languageTitle,
+    briefs: t.settings.briefsTitle,
+    timezone: t.settings.timezoneTitle,
+    categories: t.settings.categoriesTitle
+  };
+
+  const save = async (patch: Parameters<typeof updatePreferences>[0], key: SettingKey) => {
+    setBusy(key);
     setError(null);
     try {
       const saved = await updatePreferences(patch);
@@ -67,23 +101,30 @@ export default function SettingsPage() {
       // aplica al confirmar el guardado y no antes: si el servidor lo rechaza,
       // la interfaz no queda en un idioma que la cuenta no tiene.
       if (patch.language) setLanguage(saved.language);
-      setNote(`${label} guardado`);
+      setNote({ kind: "saved", setting: key });
       window.setTimeout(() => setNote(null), 2500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar.");
+      setError(saveError instanceof Error ? saveError.message : t.settings.saveFailed);
     } finally {
       setBusy(null);
     }
   };
 
-  if (state === "loading") return <Shell><p className="text-sm text-ink-2">Cargando…</p></Shell>;
+  if (state === "loading")
+    return (
+      <Shell>
+        <p className="text-sm text-ink-2">{t.settings.loading}</p>
+      </Shell>
+    );
 
   if (state === "signed_out") {
     return (
       <Shell>
         <p className="text-sm text-ink-2">
-          Necesitas iniciar sesión.{" "}
-          <Link className="font-semibold text-brand underline" href="/">Ir al acceso</Link>
+          {t.settings.signedOut}{" "}
+          <Link className="font-semibold text-brand underline" href="/">
+            {t.settings.goToSignIn}
+          </Link>
         </p>
       </Shell>
     );
@@ -95,7 +136,7 @@ export default function SettingsPage() {
     <Shell>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Ajustes</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">{t.settings.title}</h1>
           <p className="mt-1 text-sm text-ink-2">{user?.email}</p>
         </div>
         {/* Grande y con color de marca a propósito: es la única salida de esta
@@ -105,7 +146,7 @@ export default function SettingsPage() {
           href="/"
           className="rounded-field bg-brand px-4 py-2.5 text-sm font-semibold text-brand-ink shadow-card transition-opacity hover:opacity-90"
         >
-          ← Mis tareas
+          {t.settings.backToTasks}
         </Link>
       </div>
 
@@ -116,7 +157,9 @@ export default function SettingsPage() {
       )}
       {note && (
         <p className="mb-5 rounded-card border border-ok/30 bg-ok-soft px-4 py-3 text-sm text-ok">
-          {note}
+          {note.kind === "disconnected"
+            ? t.settings.disconnected
+            : t.settings.saved(settingTitle[note.setting])}
         </p>
       )}
 
@@ -124,13 +167,13 @@ export default function SettingsPage() {
           First on the page on purpose: it is where the product actually
           happens. Everything below only matters once this is connected.      */}
       <Section
-        title="Telegram"
-        hint="Aquí es donde Sydney vive. La web es para mirar y ordenar; hablar con ella es allá — y desde el teléfono, las notas de voz también: el micrófono de la web solo aparece en el computador."
+        title={t.settings.telegramTitle}
+        hint={t.settings.telegramHint}
       >
         {connected ? (
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-chip border border-ok/30 bg-ok-soft px-3 py-1 text-[12.5px] font-semibold text-ok">
-              ✓ Conectado
+              {t.settings.telegramConnected}
             </span>
             <a
               href="https://t.me/Melizion_bot"
@@ -138,35 +181,32 @@ export default function SettingsPage() {
               rel="noreferrer"
               className="rounded-field bg-brand px-4 py-2 text-sm font-semibold text-brand-ink"
             >
-              Abrir el chat
+              {t.settings.openChat}
             </a>
             <button
               type="button"
-              disabled={busy === "Telegram"}
+              disabled={busy === "telegram"}
               onClick={async () => {
-                setBusy("Telegram");
+                setBusy("telegram");
                 setError(null);
                 try {
                   await disconnectTelegram();
                   await load();
-                  setNote("Telegram desconectado");
+                  setNote({ kind: "disconnected" });
                 } catch (e) {
-                  setError(e instanceof Error ? e.message : "No se pudo desconectar.");
+                  setError(e instanceof Error ? e.message : t.settings.disconnectFailed);
                 } finally {
                   setBusy(null);
                 }
               }}
               className="rounded-field border border-line px-3 py-2 text-sm text-ink-2 hover:border-line-2 hover:text-ink"
             >
-              Desconectar
+              {t.settings.disconnect}
             </button>
           </div>
         ) : (
           <>
-            <p className="mb-4 max-w-prose text-sm text-ink-2">
-              Todavía no has conectado Telegram. Mientras no lo hagas no recibirás los briefs de la
-              mañana y la noche, y no puedes escribirle a Sydney.
-            </p>
+            <p className="mb-4 max-w-prose text-sm text-ink-2">{t.settings.telegramMissing}</p>
             <TelegramConnect connected={false} onConnected={() => void load()} />
           </>
         )}
@@ -174,16 +214,16 @@ export default function SettingsPage() {
 
       {/* ── Idioma ─────────────────────────────────────────────────────────── */}
       <Section
-        title="Idioma"
-        hint="El idioma en que Sydney te responde en el chat. No cambia el idioma de la app de Telegram — eso es de tu teléfono."
+        title={t.settings.languageTitle}
+        hint={t.settings.languageHint}
       >
         <div className="flex gap-2">
           {(["es", "en"] as const).map((code) => (
             <button
               key={code}
               type="button"
-              disabled={busy === "Idioma"}
-              onClick={() => void save({ language: code }, "Idioma")}
+              disabled={busy === "language"}
+              onClick={() => void save({ language: code }, "language")}
               className={cn(
                 "rounded-field border px-4 py-2 text-sm transition-colors",
                 prefs?.language === code
@@ -191,7 +231,7 @@ export default function SettingsPage() {
                   : "border-line text-ink-2 hover:border-line-2 hover:text-ink"
               )}
             >
-              {code === "es" ? "Español" : "English"}
+              {t.language[code]}
             </button>
           ))}
         </div>
@@ -199,40 +239,40 @@ export default function SettingsPage() {
 
       {/* ── Briefs ─────────────────────────────────────────────────────────── */}
       <Section
-        title="Tus dos mensajes del día"
-        hint="Llegan por Telegram, siempre. No hay versión web de esto a propósito: un resumen que tienes que ir a buscar no es un resumen."
+        title={t.settings.briefsTitle}
+        hint={t.settings.briefsHint}
       >
         {!connected && (
           <p className="mb-4 rounded-card border border-amber/30 bg-amber-soft px-3 py-2 text-[13px] text-amber-ink">
-            Conecta Telegram arriba para que estos horarios sirvan de algo.
+            {t.settings.briefsNeedTelegram}
           </p>
         )}
         <div className={cn("flex flex-wrap gap-5", !connected && "opacity-50")}>
           <TimeField
-            label="☀ En la mañana"
+            label={t.settings.briefMorning}
             value={prefs?.briefMorning ?? ""}
-            disabled={!connected || busy === "Briefs"}
-            onSave={(value) => void save({ briefMorning: value }, "Briefs")}
+            disabled={!connected || busy === "briefs"}
+            onSave={(value) => void save({ briefMorning: value }, "briefs")}
           />
           <TimeField
-            label="☾ En la noche"
+            label={t.settings.briefEvening}
             value={prefs?.briefEvening ?? ""}
-            disabled={!connected || busy === "Briefs"}
-            onSave={(value) => void save({ briefEvening: value }, "Briefs")}
+            disabled={!connected || busy === "briefs"}
+            onSave={(value) => void save({ briefEvening: value }, "briefs")}
           />
         </div>
         <p className="mt-3 text-[12.5px] text-ink-3">
-          Déjalo vacío para apagar uno de los dos.
+          {t.settings.briefsOffHint}
         </p>
       </Section>
 
       {/* ── Zona horaria ───────────────────────────────────────────────────── */}
-      <Section title="Zona horaria" hint="Define a qué hora real llegan los briefs y qué día es “hoy”.">
+      <Section title={t.settings.timezoneTitle} hint={t.settings.timezoneHint}>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={prefs?.timezone || "America/Los_Angeles"}
-            disabled={busy === "Zona horaria"}
-            onChange={(event) => void save({ timezone: event.target.value }, "Zona horaria")}
+            disabled={busy === "timezone"}
+            onChange={(event) => void save({ timezone: event.target.value }, "timezone")}
             className="rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
           >
             {TIMEZONES.map((zone) => (
@@ -242,14 +282,14 @@ export default function SettingsPage() {
             ))}
           </select>
           <span className="num text-[12.5px] text-ink-3">
-            {prefs?.timezone ? `ahora son las ${nowIn(prefs.timezone)}` : ""}
+            {prefs?.timezone ? t.settings.timeNow(timeInZone(prefs.timezone, language)) : ""}
           </span>
         </div>
       </Section>
 
       <Section
-        title="Categorías"
-        hint="Con estas se agrupan tus tareas, aquí y en Telegram. También aparecen solas cuando creas una tarea con una categoría nueva."
+        title={t.settings.categoriesTitle}
+        hint={t.settings.categoriesHint}
       >
         <div className="mb-3 flex flex-wrap gap-2">
           {(prefs?.tipoOptions || []).map((option) => {
@@ -260,16 +300,20 @@ export default function SettingsPage() {
                 className="cat-chip group inline-flex items-center gap-1.5 rounded-chip border px-3 py-1 text-[12.5px] font-semibold"
                 style={{ "--cat-h": categoryHue(option) } as React.CSSProperties}
               >
-                {categoryLabel(option, "es")}
+                {categoryLabel(option, language)}
                 <button
                   type="button"
-                  aria-label={`Quitar ${option}`}
-                  title={inUse ? "Tiene que quedar al menos una" : `Quitar ${option}`}
-                  disabled={inUse || busy === "Categorías"}
+                  aria-label={t.settings.removeCategory(categoryLabel(option, language))}
+                  title={
+                    inUse
+                      ? t.settings.lastCategory
+                      : t.settings.removeCategory(categoryLabel(option, language))
+                  }
+                  disabled={inUse || busy === "categories"}
                   onClick={() =>
                     void save(
                       { tipoOptions: (prefs?.tipoOptions || []).filter((item) => item !== option) },
-                      "Categorías"
+                      "categories"
                     )
                   }
                   className="opacity-50 transition-opacity hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-20"
@@ -294,7 +338,7 @@ export default function SettingsPage() {
               setNewCategory("");
               return;
             }
-            void save({ tipoOptions: [...existing, value] }, "Categorías");
+            void save({ tipoOptions: [...existing, value] }, "categories");
             setNewCategory("");
           }}
           className="flex gap-2"
@@ -302,21 +346,20 @@ export default function SettingsPage() {
           <input
             value={newCategory}
             onChange={(event) => setNewCategory(event.target.value)}
-            placeholder="Agregar una categoría"
+            placeholder={t.settings.addCategoryPlaceholder}
             className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
           />
           <button
             type="submit"
-            disabled={!newCategory.trim() || busy === "Categorías"}
+            disabled={!newCategory.trim() || busy === "categories"}
             className="rounded-field border border-line px-3 py-2 text-sm text-ink-2 hover:border-line-2 hover:text-ink disabled:opacity-40"
           >
-            Agregar
+            {t.settings.addCategory}
           </button>
         </form>
 
         <p className="mt-3 text-[12.5px] text-ink-3">
-          Quitar una categoría de esta lista no borra las tareas que ya la tienen; solo deja de
-          ofrecerse al crear.
+          {t.settings.categoriesFootnote}
         </p>
       </Section>
     </Shell>
@@ -342,13 +385,6 @@ const TIMEZONES = [
   "UTC"
 ];
 
-function nowIn(timeZone: string): string {
-  try {
-    return new Date().toLocaleTimeString("es-CL", { timeZone, hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
 
 function TimeField({
   label,
@@ -400,13 +436,14 @@ function Section({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   return (
     <main className="min-h-screen bg-bg px-5 py-9 sm:px-8">
       <div className="mx-auto w-full max-w-2xl">
         <header className="mb-8 flex items-center gap-3 border-b border-line pb-5">
           <Wordmark href="/" />
           <span className="rounded-chip border border-line bg-sunken px-3 py-1 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            ajustes
+            {t.settings.eyebrow}
           </span>
         </header>
         {children}

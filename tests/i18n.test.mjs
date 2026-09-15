@@ -51,7 +51,14 @@ const TRANSLATED = [
   "src/components/SignInScreen.tsx",
   "src/components/TaskCard.tsx",
   "src/components/TaskSection.tsx",
-  "src/components/TodayView.tsx"
+  "src/components/TodayView.tsx",
+  // Fase 2 — plata y ajustes.
+  "src/app/ajustes/page.tsx",
+  "src/components/DebtsView.tsx",
+  "src/components/TelegramConnect.tsx",
+  "src/components/TelegramNudge.tsx",
+  "src/components/VoiceButton.tsx",
+  "src/components/ui/Toast.tsx"
 ];
 
 /**
@@ -122,6 +129,7 @@ test("los archivos ya traducidos no tienen español suelto", () => {
  */
 const SAME_IN_BOTH = new Set([
   "Sydney", // el nombre del producto
+  "Telegram", // idem, es de otro producto
   "Español", // el nombre de un idioma se dibuja en su propio idioma: quien lo
   "English", // busca, busca la palabra que conoce
   "Personal", // identificador de categoría, idéntico en ambos
@@ -188,4 +196,30 @@ test("el catálogo inglés no quedó en español", () => {
     false,
     "messages.en.ts tiene un TODO: hay traducciones sin terminar"
   );
+});
+
+/**
+ * El bug que originó `format.ts`, convertido en prueba.
+ *
+ * Había dos copias de `money()` y las dos tenían clavado `es-CL`, que agrupa los
+ * miles con punto: 1500 USD se dibujaba "1.500 USD", que un angloparlante lee
+ * como 1,5. No es cosmético, es un número equivocado.
+ */
+test("money agrupa según el idioma y no según quién lo escribió", () => {
+  const source = readFileSync(new URL("../src/lib/i18n/format.ts", import.meta.url), "utf8");
+  const { code } = transformSync(source, { loader: "ts", format: "cjs" });
+  const module = { exports: {} };
+  new Function("module", "exports", "require", code)(module, module.exports, () => ({}));
+  const { money } = module.exports;
+
+  assert.equal(money(1500, "USD", "es"), "1.500 USD");
+  assert.equal(money(1500, "USD", "en"), "1,500 USD");
+
+  // Sin decimales cuando no los necesita: era deliberado y se conserva.
+  assert.equal(money(94, "USD", "en"), "94 USD");
+  assert.equal(money(94.5, "USD", "en"), "94.50 USD");
+
+  // CLP no tiene centavos. Antes mostraba "1.234,56 CLP", que no existe.
+  assert.equal(money(1234.56, "CLP", "es"), "1.235 CLP");
+  assert.equal(money(1234.56, "CLP", "en"), "1,235 CLP");
 });

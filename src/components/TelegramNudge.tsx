@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n/provider";
 
 const DISMISSED_KEY = "sydney-telegram-nudge-dismissed";
 
@@ -17,6 +18,7 @@ const DISMISSED_KEY = "sydney-telegram-nudge-dismissed";
  * conectado, la mitad del producto sigue apagada y decirlo una vez no basta.
  */
 export function TelegramNudge({ connected }: { connected: boolean }) {
+  const t = useT();
   const [hidden, setHidden] = useState(true);
 
   useEffect(() => {
@@ -38,17 +40,16 @@ export function TelegramNudge({ connected }: { connected: boolean }) {
       <div className="flex items-start gap-2">
         <span aria-hidden className="text-lg leading-none">✈</span>
         <div className="min-w-0 flex-1">
-          <b className="block font-display text-[14px] text-ink">Te falta conectar Telegram</b>
+          <b className="block font-display text-[14px] text-ink">{t.telegram.nudgeTitle}</b>
           <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
-            Ahí es donde le escribes a Sydney y donde llegan tus dos mensajes del día. Es la misma
-            cuenta: las mismas tareas y las mismas deudas, en los dos lados.
+            {t.telegram.nudgeBody}
           </p>
           <div className="mt-3 flex items-center gap-2">
             <Link
               href="/ajustes"
               className="rounded-field bg-brand px-3 py-1.5 text-[13px] font-semibold text-brand-ink"
             >
-              Conectar
+              {t.telegram.nudgeConnect}
             </Link>
             <button
               type="button"
@@ -62,13 +63,13 @@ export function TelegramNudge({ connected }: { connected: boolean }) {
               }}
               className="rounded-field px-2 py-1.5 text-[13px] text-ink-3 hover:text-ink-2"
             >
-              Ahora no
+              {t.telegram.nudgeLater}
             </button>
           </div>
         </div>
         <button
           type="button"
-          aria-label="Cerrar"
+          aria-label={t.telegram.nudgeClose}
           onClick={() => {
             setHidden(true);
             try {

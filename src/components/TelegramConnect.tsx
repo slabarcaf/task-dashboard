@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { TelegramLink, createTelegramLink, getCurrentUser } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n/provider";
 
 type TelegramConnectProps = {
   /** Mientras es false se ofrece conectar; cuando pasa a true, se felicita. */
@@ -32,6 +33,7 @@ type TelegramConnectProps = {
  * de mostrar lo mismo a los dos y que cada quien se las arregle.
  */
 export function TelegramConnect({ connected, onConnected, className }: TelegramConnectProps) {
+  const t = useT();
   const [link, setLink] = useState<TelegramLink | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,11 +76,9 @@ export function TelegramConnect({ connected, onConnected, className }: TelegramC
     return (
       <div className={cn("flex flex-wrap items-center gap-3", className)}>
         <span className="rounded-chip border border-ok/30 bg-ok-soft px-3 py-1 text-[12.5px] font-semibold text-ok">
-          ✓ Telegram conectado
+          {t.telegram.connected}
         </span>
-        <span className="text-[13px] text-ink-2">
-          Ya puedes escribirle. Los resúmenes empiezan mañana.
-        </span>
+        <span className="text-[13px] text-ink-2">{t.telegram.connectedHint}</span>
       </div>
     );
   }
@@ -95,14 +95,14 @@ export function TelegramConnect({ connected, onConnected, className }: TelegramC
             try {
               setLink(await createTelegramLink());
             } catch (e) {
-              setError(e instanceof Error ? e.message : "No se pudo generar el código.");
+              setError(e instanceof Error ? e.message : t.telegram.codeFailed);
             } finally {
               setBusy(false);
             }
           }}
           className="rounded-field bg-brand px-5 py-2.5 text-[14.5px] font-semibold text-brand-ink disabled:opacity-50"
         >
-          {busy ? "Generando…" : "Conectar Telegram"}
+          {busy ? t.telegram.generating : t.telegram.connect}
         </button>
         {error && <p className="mt-3 text-[13px] text-late">{error}</p>}
       </div>
@@ -114,7 +114,7 @@ export function TelegramConnect({ connected, onConnected, className }: TelegramC
       {/* Segundo en el teléfono, primero en el computador. */}
       <img
         src={link.qrDataUrl}
-        alt="Código QR para abrir el chat de Sydney en Telegram"
+        alt={t.telegram.qrAlt}
         // 192px de QR dibujado para una URL de ~45 caracteres son unos cinco
         // píxeles por módulo, que se escanea cómodo; a 160px quedaba al límite.
         // La placa blanca es explícita para que el modo oscuro no la invierta.
@@ -128,24 +128,25 @@ export function TelegramConnect({ connected, onConnected, className }: TelegramC
           rel="noreferrer"
           className="inline-block w-full rounded-field bg-brand px-5 py-3 text-center text-[15px] font-semibold text-brand-ink sm:w-auto sm:py-2.5"
         >
-          Abrir Telegram y conectar
+          {t.telegram.openAndConnect}
         </a>
         <p className="mt-3 text-[13.5px] leading-relaxed text-ink-2">
-          <b className="text-ink">¿Estás en el computador?</b> Escanea el código con la cámara del
-          teléfono. Ahí es donde te va a servir el chat.
+          <b className="text-ink">{t.telegram.onComputerBold}</b>
+          {t.telegram.onComputerRest}
         </p>
 
         <p className="mt-4 text-[12.5px] leading-relaxed text-ink-3">
-          ¿No puedes escanear? Escríbele a <b className="text-ink-2">@{link.botUsername}</b> en
-          Telegram:
+          {t.telegram.cannotScanBefore}
+          <b className="text-ink-2">@{link.botUsername}</b>
+          {t.telegram.cannotScanAfter}
         </p>
         <code className="num mt-1.5 inline-block rounded-field border border-line bg-sunken px-3 py-1.5 text-[13px] font-semibold text-ink">
           /link {link.code}
         </code>
         <p className="mt-3 text-[12.5px] leading-relaxed text-ink-3">
-          El código sirve por 24 horas. <b className="text-ink-2">Si no tienes Telegram</b>, el
-          enlace te lleva a instalarlo — hace falta un número de teléfono — y después vuelves a
-          tocarlo para terminar.
+          {t.telegram.codeLifeBefore}
+          <b className="text-ink-2">{t.telegram.codeLifeBold}</b>
+          {t.telegram.codeLifeAfter}
         </p>
       </div>
     </div>
