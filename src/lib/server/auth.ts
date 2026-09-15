@@ -180,5 +180,5 @@ export function originIsTrusted(): boolean {
 
 /** El mismo rechazo para todos, para que ninguna ruta invente su propio texto. */
 export function crossOriginRefused(): NextResponse {
-  return NextResponse.json({ ok: false, error: "Origen no permitido." }, { status: 403 });
+  return NextResponse.json({ ok: false, error: "bad_origin" }, { status: 403 });
 }

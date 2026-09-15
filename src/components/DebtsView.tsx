@@ -4,13 +4,19 @@ import { FormEvent, useMemo, useState } from "react";
 import { EmptyState, TaskSection } from "@/components/TaskSection";
 import { cn } from "@/lib/cn";
 import { formatShortDate } from "@/lib/date";
-import { money } from "@/lib/i18n/format";
+import { isoDateInZone, money } from "@/lib/i18n/format";
 import { useLanguage, useT } from "@/lib/i18n/provider";
 import { Debt } from "@/lib/api";
 
 type DebtsViewProps = {
   debts: Debt[];
   isLoading: boolean;
+  /**
+   * La zona horaria de la cuenta (`users.timezone`). Decide en qué día del
+   * calendario cae el `createdAt` de cada fila; vacío mientras las preferencias
+   * viajan, y ahí manda la zona del dispositivo.
+   */
+  timeZone: string;
   pendingIds: Record<number, boolean>;
   onAdd: (input: {
     name: string;
@@ -33,6 +39,7 @@ type DebtsViewProps = {
 export function DebtsView({
   debts,
   isLoading,
+  timeZone,
   pendingIds,
   onAdd,
   onToggleStatus,
@@ -107,6 +114,7 @@ export function DebtsView({
                 <DebtRow
                   key={debt.id}
                   debt={debt}
+                  timeZone={timeZone}
                   pending={Boolean(pendingIds[debt.id])}
                   onToggleStatus={onToggleStatus}
                   onDelete={onDelete}
@@ -120,6 +128,7 @@ export function DebtsView({
                 <DebtRow
                   key={debt.id}
                   debt={debt}
+                  timeZone={timeZone}
                   pending={Boolean(pendingIds[debt.id])}
                   onToggleStatus={onToggleStatus}
                   onDelete={onDelete}
@@ -133,6 +142,7 @@ export function DebtsView({
                 <DebtRow
                   key={debt.id}
                   debt={debt}
+                  timeZone={timeZone}
                   pending={Boolean(pendingIds[debt.id])}
                   onToggleStatus={onToggleStatus}
                   onDelete={onDelete}
@@ -148,11 +158,13 @@ export function DebtsView({
 
 function DebtRow({
   debt,
+  timeZone,
   pending,
   onToggleStatus,
   onDelete
 }: {
   debt: Debt;
+  timeZone: string;
   pending: boolean;
   onToggleStatus: (debt: Debt) => void;
   onDelete: (debt: Debt) => void;
@@ -210,7 +222,7 @@ function DebtRow({
           {money(debt.amount, debt.currency, language)}
         </span>
         <span className="num text-[11.5px] text-ink-3">
-          {formatShortDate(debt.createdAt.slice(0, 10), language)}
+          {formatShortDate(isoDateInZone(debt.createdAt, timeZone), language)}
         </span>
       </div>
 

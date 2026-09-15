@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { listTasks, updateTask } from "@/lib/api";
 import { normalizeTaskPatch } from "@/lib/taskFilters";
+import { apiErrorText, isUnauthorized } from "@/lib/i18n/errors";
+import { useT } from "@/lib/i18n/provider";
 import { Task, TaskPatch } from "@/lib/types";
 
 /**
@@ -32,6 +34,7 @@ type UseTasksOptions = {
 };
 
 export function useTasks({ isSignedIn, onUnauthorized, pushToast, setError }: UseTasksOptions) {
+  const t = useT();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingRows, setPendingRows] = useState<Record<number, boolean>>({});
@@ -54,16 +57,16 @@ export function useTasks({ isSignedIn, onUnauthorized, pushToast, setError }: Us
       const rows = await listTasks();
       setTasks(rows);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Failed to load tasks.";
-      if (message === "Unauthorized") {
+      // Por el código, no por el texto: ver `isUnauthorized`.
+      if (isUnauthorized(loadError)) {
         onUnauthorized();
         setTasks([]);
       }
-      setError(message);
+      setError(apiErrorText(t, loadError));
     } finally {
       setIsLoading(false);
     }
-  }, [isSignedIn, onUnauthorized, setError]);
+  }, [isSignedIn, onUnauthorized, setError, t]);
 
   const registerSuccessfulMutation = useCallback(async () => {
     let shouldRefresh = false;
@@ -124,13 +127,12 @@ export function useTasks({ isSignedIn, onUnauthorized, pushToast, setError }: Us
         return true;
       } catch (updateError) {
         setTasks(snapshot);
-        const message = updateError instanceof Error ? updateError.message : "Update failed.";
-        if (message === "Unauthorized") {
+        if (isUnauthorized(updateError)) {
           onUnauthorized();
           setTasks([]);
         }
-        setError(message);
-        pushToast("Update failed", "error");
+        setError(apiErrorText(t, updateError));
+        pushToast(t.errors.update, "error");
         return false;
       } finally {
         setRowPending(rowId, false);

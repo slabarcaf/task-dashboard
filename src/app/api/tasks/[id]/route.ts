@@ -113,7 +113,7 @@ export async function PATCH(
     // antes de enviar.
     if (Object.keys(patch).length === 0) {
       return NextResponse.json(
-        { ok: false, error: "Nada que actualizar: falta el objeto 'patch'." },
+        { ok: false, error: "missing_patch" },
         { status: 400 }
       );
     }

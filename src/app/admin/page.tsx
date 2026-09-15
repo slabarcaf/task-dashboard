@@ -13,6 +13,10 @@ import {
   runAdminUserAction
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { formatShortDate } from "@/lib/date";
+import { apiErrorText, isForbidden } from "@/lib/i18n/errors";
+import { useLanguage, useT } from "@/lib/i18n/provider";
+import type { AppLanguage } from "@/lib/language";
 import { AuthUser } from "@/lib/types";
 
 /**
@@ -22,36 +26,14 @@ import { AuthUser } from "@/lib/types";
  * "did the invite work?" without opening a database client. The three actions
  * are the ones that were only reachable as Telegram commands before.
  */
-/**
- * El mensaje que se manda a mano cuando el correo no salió.
- *
- * La versión anterior decía "O directo al chat" — que no significa nada para
- * alguien que no conoce el producto, y es exactamente la persona que recibe
- * esto. Un enlace sin explicar qué hay del otro lado no se abre.
- *
- * Sin markdown ni viñetas raras a propósito: esto se pega tal cual en WhatsApp
- * o en un correo, donde los asteriscos salen como asteriscos.
- */
-function manualInvite(to: string, appUrl: string, telegramLink: string): string {
-  return [
-    "Te invité a Sydney: una lista de tareas a la que le escribes como a una persona.",
-    'Le dices "pagar la luz el viernes" y la anota con la fecha puesta.',
-    "",
-    "Son dos lados de la misma cuenta, y puedes empezar por cualquiera:",
-    "",
-    `1) La web, para ver y ordenar tus tareas. Entra con ${to}:`,
-    `   ${appUrl}`,
-    "",
-    "2) Telegram, que es donde Sydney te habla a ti: te manda un resumen en la",
-    "   mañana y otro en la noche, y le escribes —o le mandas un audio— desde el",
-    "   teléfono, sin abrir nada. Este enlace abre el chat y te deja dentro:",
-    `   ${telegramLink}`,
-    "",
-    "El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla."
-  ].join("\n");
-}
+// El texto para pegar a mano ya no se arma aquí: viaja en la respuesta de
+// `POST /api/admin/users`, construido por `manualInviteText` en mail.ts con el
+// idioma de la invitación. Había dos textos que decían lo mismo, y el de esta
+// pantalla ya se había quedado atrás una vez.
 
 export default function AdminPage() {
+  const t = useT();
+  const language = useLanguage();
   const [viewer, setViewer] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "denied" | "signed_out">("loading");
@@ -70,8 +52,12 @@ export default function AdminPage() {
       telegramLink?: string;
       reason?: "not_configured" | "unverified_domain" | "failed";
       detail?: string;
+      manualText?: string;
     } | null
   >(null);
+  // El idioma con el que nace la cuenta invitada. Arranca en el de quien invita,
+  // que es la suposición razonable y no un formulario más que llenar.
+  const [inviteLanguage, setInviteLanguage] = useState<AppLanguage>(language);
 
   const load = useCallback(async () => {
     try {
@@ -86,16 +72,18 @@ export default function AdminPage() {
       setIntegrations(found);
       setState("ready");
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "No se pudo cargar.";
-      // 403 comes back as "Forbidden" from the API's error envelope.
-      if (/forbidden/i.test(message)) {
+      // Por el código, no por el texto. Esto era
+      // `/forbidden/i.test(message)`, y traducir el mensaje lo habría dejado
+      // sin dar nunca verdadero: en vez de la pantalla explicada saldría un
+      // aviso rojo genérico. Ver `isForbidden`.
+      if (isForbidden(loadError)) {
         setState("denied");
         return;
       }
-      setError(message);
+      setError(apiErrorText(t, loadError));
       setState("ready");
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -108,7 +96,7 @@ export default function AdminPage() {
       await runAdminUserAction(id, action);
       await load();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "La acción falló.");
+      setError(apiErrorText(t, actionError));
     } finally {
       setBusyId(null);
     }
@@ -121,23 +109,30 @@ export default function AdminPage() {
       const taskCount = await deleteAdminUser(row.id, typed);
       setConfirming(null);
       await load();
-      setError(`Cuenta ${row.email} eliminada junto con ${taskCount} tareas.`);
+      setError(t.admin.deleted(row.email, taskCount));
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar.");
+      setError(apiErrorText(t, deleteError));
     } finally {
       setBusyId(null);
     }
   };
 
   if (state === "loading") {
-    return <Shell><p className="text-sm text-ink-2">Cargando…</p></Shell>;
+    return (
+      <Shell>
+        <p className="text-sm text-ink-2">{t.admin.loading}</p>
+      </Shell>
+    );
   }
 
   if (state === "signed_out") {
     return (
       <Shell>
         <p className="text-sm text-ink-2">
-          Necesitas iniciar sesión. <Link className="font-semibold text-brand underline" href="/">Ir al acceso</Link>
+          {t.admin.signedOut}{" "}
+          <Link className="font-semibold text-brand underline" href="/">
+            {t.admin.goToSignIn}
+          </Link>
         </p>
       </Shell>
     );
@@ -146,13 +141,12 @@ export default function AdminPage() {
   if (state === "denied") {
     return (
       <Shell>
-        <h1 className="font-display text-xl font-semibold text-ink">Esta pantalla no es para ti</h1>
+        <h1 className="font-display text-xl font-semibold text-ink">{t.admin.deniedTitle}</h1>
         <p className="mt-2 max-w-prose text-sm text-ink-2">
-          Tu cuenta ({viewer?.email}) no está en la lista de administradores. Nadie más que un
-          administrador puede ver los datos de otras cuentas.
+          {t.admin.deniedBody(viewer?.email || "")}
         </p>
         <Link className="mt-4 inline-block text-sm font-semibold text-brand underline" href="/">
-          Volver a mis tareas
+          {t.admin.deniedBack}
         </Link>
       </Shell>
     );
@@ -172,9 +166,9 @@ export default function AdminPage() {
     <Shell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Usuarios</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">{t.admin.title}</h1>
           <p className="mt-1 text-sm text-ink-2">
-            Quién existe, hasta dónde llegó y qué tiene dentro.
+            {t.admin.subtitle}
           </p>
         </div>
         {/* Grande y con color de marca a propósito: es la única salida de esta
@@ -184,15 +178,19 @@ export default function AdminPage() {
           href="/"
           className="rounded-field bg-brand px-4 py-2.5 text-sm font-semibold text-brand-ink shadow-card transition-opacity hover:opacity-90"
         >
-          ← Mis tareas
+          {t.admin.backToTasks}
         </Link>
       </div>
 
       <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Cuentas" value={users.length} />
-        <Stat label="Con onboarding" value={`${totals.onboarded}/${users.length}`} />
-        <Stat label="Con Telegram" value={`${totals.telegram}/${users.length}`} />
-        <Stat label="Tareas pendientes" value={totals.pending} hint={`${totals.tasks} en total`} />
+        <Stat label={t.admin.statAccounts} value={users.length} />
+        <Stat label={t.admin.statOnboarded} value={`${totals.onboarded}/${users.length}`} />
+        <Stat label={t.admin.statTelegram} value={`${totals.telegram}/${users.length}`} />
+        <Stat
+          label={t.admin.statPending}
+          value={totals.pending}
+          hint={t.admin.statTotalHint(totals.tasks)}
+        />
       </div>
 
       {error && (
@@ -203,37 +201,36 @@ export default function AdminPage() {
 
       {integrations && (
         <section className="mb-4 rounded-panel border border-line bg-surface p-4 shadow-card">
-          <h2 className="mb-3 font-display text-[15px] font-semibold text-ink">Integraciones</h2>
+          <h2 className="mb-3 font-display text-[15px] font-semibold text-ink">{t.admin.integrationsTitle}</h2>
           <div className="flex flex-wrap gap-2">
             <IntegrationChip
               on={integrations.voice}
-              label="Notas de voz"
-              hint={integrations.voice ? "OPENAI_API_KEY puesta" : "falta OPENAI_API_KEY en Vercel"}
+              label={t.admin.voiceLabel}
+              hint={integrations.voice ? t.admin.voiceOn : t.admin.voiceOff}
             />
             <IntegrationChip
               on={integrations.mail}
               // Sin dominio propio, Resend solo entrega a la dirección dueña de
               // la cuenta. La llave está puesta y aun así nadie más recibe nada.
               limited={integrations.mail && integrations.mailFrom.includes("resend.dev")}
-              label="Invitaciones por correo"
+              label={t.admin.mailLabel}
               hint={
                 !integrations.mail
-                  ? "falta RESEND_API_KEY en Vercel"
+                  ? t.admin.mailOff
                   : integrations.mailFrom.includes("resend.dev")
-                    ? "solo llegan a tu propia dirección — falta verificar un dominio"
-                    : `enviando desde ${integrations.mailFrom}`
+                    ? t.admin.mailLimited
+                    : t.admin.mailOn(integrations.mailFrom)
               }
             />
             <IntegrationChip on label={`Telegram: @${integrations.telegramBot}`} />
           </div>
           {integrations.misnamed.length > 0 && (
             <div className="mt-3 rounded-card border border-amber/30 bg-amber-soft p-3 text-[13px]">
-              <b className="text-ink">El nombre no coincide.</b> Están estas variables, pero con un
-              nombre que el código no busca:
+              <b className="text-ink">{t.admin.misnamedTitle}</b> {t.admin.misnamedBody}
               <ul className="mt-1.5 space-y-1">
                 {integrations.misnamed.map((entry) => (
                   <li key={entry.found} className="num">
-                    <code className="font-mono">{entry.found}</code> → debería llamarse{" "}
+                    <code className="font-mono">{entry.found}</code> {t.admin.misnamedShouldBe}{" "}
                     <code className="font-mono text-ink">{entry.shouldBe}</code>
                   </li>
                 ))}
@@ -241,8 +238,7 @@ export default function AdminPage() {
             </div>
           )}
           <p className="mt-3 text-[12.5px] text-ink-3">
-            Una variable agregada en Vercel solo aplica en un build nuevo. Si acabas de ponerla y
-            aquí sigue en rojo, falta el redeploy — o está en otro proyecto.
+            {t.admin.redeployHint}
           </p>
         </section>
       )}
@@ -259,7 +255,7 @@ export default function AdminPage() {
           setAdding(true);
           setError(null);
           try {
-            const invite = await createAdminUser(newEmail, newName);
+            const invite = await createAdminUser(newEmail, newName, inviteLanguage);
             const to = newEmail.trim().toLowerCase();
             setInvite(
               invite.sent
@@ -269,24 +265,24 @@ export default function AdminPage() {
                     appUrl: invite.appUrl,
                     telegramLink: invite.telegramLink,
                     reason: invite.reason,
-                    detail: invite.detail
+                    detail: invite.detail,
+                    manualText: invite.manualText
                   }
             );
             setNewEmail("");
             setNewName("");
             await load();
           } catch (addError) {
-            setError(addError instanceof Error ? addError.message : "No se pudo crear.");
+            setError(apiErrorText(t, addError));
           } finally {
             setAdding(false);
           }
         }}
         className="mb-4 rounded-panel border border-line bg-surface p-4 shadow-card"
       >
-        <h2 className="font-display text-[15px] font-semibold text-ink">Agregar una cuenta</h2>
+        <h2 className="font-display text-[15px] font-semibold text-ink">{t.admin.addTitle}</h2>
         <p className="mb-3 mt-0.5 text-[12.5px] text-ink-2">
-          No manda ningún correo. Crea la cuenta para que, al entrar con ese Google, caiga aquí en
-          vez de crear una nueva.
+          {t.admin.addHint}
         </p>
         <div className="flex flex-wrap gap-2">
           <input
@@ -294,13 +290,13 @@ export default function AdminPage() {
             required
             value={newEmail}
             onChange={(event) => setNewEmail(event.target.value)}
-            placeholder="correo@ejemplo.com"
+            placeholder={t.admin.emailPlaceholder}
             className="min-w-0 flex-[2] rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
           />
           <input
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
-            placeholder="Nombre (opcional)"
+            placeholder={t.admin.namePlaceholder}
             className="min-w-0 flex-1 rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/60"
           />
           <button
@@ -308,8 +304,32 @@ export default function AdminPage() {
             disabled={adding || !newEmail.trim()}
             className="rounded-field bg-brand px-4 py-2 text-sm font-semibold text-brand-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {adding ? "Creando…" : "Crear"}
+            {adding ? t.admin.creating : t.admin.create}
           </button>
+        </div>
+
+        {/* El idioma decide el correo **y** el valor con el que nace la fila, así
+            que quien fue invitado en inglés abre la app ya en inglés. */}
+        <div className="mt-2.5 flex items-center gap-2">
+          <span className="text-[12px] text-ink-3">{t.admin.inviteLanguage}</span>
+          <div className="inline-flex rounded-field border border-line bg-sunken p-0.5">
+            {(["es", "en"] as AppLanguage[]).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setInviteLanguage(code)}
+                aria-pressed={inviteLanguage === code}
+                className={cn(
+                  "rounded-[6px] px-2.5 py-1 text-[12px] font-semibold transition-colors",
+                  inviteLanguage === code
+                    ? "bg-surface text-ink shadow-card"
+                    : "text-ink-3 hover:text-ink-2"
+                )}
+              >
+                {t.language[code]}
+              </button>
+            ))}
+          </div>
         </div>
 
         {invite && (
@@ -317,40 +337,41 @@ export default function AdminPage() {
             {invite.appUrl ? (
               <>
                 <p className="text-ink">
-                  Cuenta creada para <b>{invite.to}</b>, pero{" "}
+                  {t.admin.inviteFailedBefore}
+                  <b>{invite.to}</b>
+                  {t.admin.inviteFailedMid}
                   <b>
                     {invite.reason === "not_configured"
-                      ? "no se envió correo"
+                      ? t.admin.reasonNotConfigured
                       : invite.reason === "unverified_domain"
-                        ? "Resend no lo dejó salir"
-                        : "el correo no se pudo enviar"}
+                        ? t.admin.reasonUnverified
+                        : t.admin.reasonFailed}
                   </b>
-                  . Mándale esto tú:
+                  {t.admin.inviteFailedTail}
                 </p>
                 <textarea
                   readOnly
                   rows={12}
                   onFocus={(event) => event.currentTarget.select()}
-                  value={manualInvite(invite.to, invite.appUrl, invite.telegramLink || "")}
+                  value={invite.manualText || ""}
                   className="mt-2 w-full resize-none rounded-field border border-line bg-surface px-3 py-2 text-[12.5px] leading-relaxed text-ink-2 outline-none"
                 />
 
                 {/* Cada motivo tiene una acción distinta, así que cada uno la dice. */}
                 {invite.reason === "not_configured" && (
                   <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-                    Para que salgan solas: crear una API key en resend.com y ponerla en Vercel como{" "}
+                    {t.admin.fixNotConfiguredBefore}
                     <code className="font-mono">RESEND_API_KEY</code>.
                   </p>
                 )}
                 {invite.reason === "unverified_domain" && (
                   <div className="mt-2 rounded-card border border-amber/30 bg-amber-soft px-3 py-2.5 text-[12px] leading-relaxed text-amber-ink">
-                    <b>Resend funciona; lo que falta es un dominio.</b> Sin uno verificado solo deja
-                    enviar desde <code className="font-mono">onboarding@resend.dev</code>, y solo a
-                    la dirección dueña de la cuenta de Resend. A cualquier otra persona la rechaza.
+                    <b>{t.admin.fixUnverifiedBold}</b>
+                    {t.admin.fixUnverifiedBody}
                     <br />
-                    Se arregla una vez: verificar un dominio en resend.com → Domains, y poner{" "}
-                    <code className="font-mono">INVITE_FROM</code> en Vercel con una dirección de
-                    ese dominio. Desde ahí las invitaciones salen solas.
+                    {t.admin.fixUnverifiedFixBefore}
+                    <code className="font-mono">INVITE_FROM</code>
+                    {t.admin.fixUnverifiedFixAfter}
                   </div>
                 )}
                 {invite.reason === "failed" && invite.detail && (
@@ -361,8 +382,7 @@ export default function AdminPage() {
               </>
             ) : (
               <p className="text-ink">
-                Invitación enviada a <b>{invite.to}</b>. Va a aparecer abajo con “nunca” en último
-                acceso hasta que entre.
+                {t.admin.inviteSent(invite.to)} {t.admin.inviteSentTail}
               </p>
             )}
           </div>
@@ -374,12 +394,12 @@ export default function AdminPage() {
           aparecen cuando se piden. */}
       <div className="overflow-hidden rounded-panel border border-line bg-surface shadow-card">
         <div className="hidden items-center gap-3 border-b border-line px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3 sm:flex">
-          <span className="min-w-0 flex-1">Persona</span>
-          <span className="w-14 text-right">Tareas</span>
-          <span className="w-20 text-right">Pendientes</span>
-          <span className="w-16 text-right">Vencidas</span>
-          <span className="w-24 text-right">Último acceso</span>
-          <span className="w-24 text-right">Última tarea</span>
+          <span className="min-w-0 flex-1">{t.admin.colPerson}</span>
+          <span className="w-14 text-right">{t.admin.colTasks}</span>
+          <span className="w-20 text-right">{t.admin.colPending}</span>
+          <span className="w-16 text-right">{t.admin.colOverdue}</span>
+          <span className="w-24 text-right">{t.admin.colLastSignIn}</span>
+          <span className="w-24 text-right">{t.admin.colLastTask}</span>
           <span className="w-5" />
         </div>
 
@@ -407,24 +427,24 @@ export default function AdminPage() {
                     </span>
                     {isViewer && (
                       <span className="flex-none rounded-chip border border-brand/30 bg-brand-soft px-1.5 text-[10.5px] font-semibold text-brand">
-                        tú
+                        {t.admin.tagYou}
                       </span>
                     )}
                     {!row.onboardingCompleted && (
                       <span className="flex-none rounded-chip border border-amber/30 bg-amber-soft px-1.5 text-[10.5px] font-semibold text-amber-ink">
-                        sin onboarding
+                        {t.admin.tagNoOnboarding}
                       </span>
                     )}
                     {!row.telegramLinked && (
                       <span className="flex-none rounded-chip border border-line bg-sunken px-1.5 text-[10.5px] font-semibold text-ink-3">
-                        sin Telegram
+                        {t.admin.tagNoTelegram}
                       </span>
                     )}
                     {/* El motivo real por el que una cuenta creada de antemano
                         sirve: así se ve a quién nunca le llegó la invitación. */}
                     {!row.lastSignInAt && row.taskCount === 0 && (
                       <span className="flex-none rounded-chip border border-brand/30 bg-brand-soft px-1.5 text-[10.5px] font-semibold text-brand">
-                        invitado, no ha entrado
+                        {t.admin.tagInvitedNeverIn}
                       </span>
                     )}
                   </span>
@@ -436,8 +456,8 @@ export default function AdminPage() {
                 <Cell width="w-16" tone={row.overdueCount > 0 ? "late" : undefined}>
                   {row.overdueCount}
                 </Cell>
-                <Cell width="w-24">{shortDate(row.lastSignInAt) || "nunca"}</Cell>
-                <Cell width="w-24">{shortDate(row.lastTaskActivityAt) || "—"}</Cell>
+                <Cell width="w-24">{shortDate(row.lastSignInAt, language) || t.admin.never}</Cell>
+                <Cell width="w-24">{shortDate(row.lastTaskActivityAt, language) || "—"}</Cell>
                 <span aria-hidden className="w-5 flex-none text-center text-ink-3">
                   {open ? "▾" : "▸"}
                 </span>
@@ -446,14 +466,25 @@ export default function AdminPage() {
               {open && (
                 <div className="border-t border-line bg-bg px-4 py-3">
                   <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
-                    <Field label="Onboarding" value={row.onboardingCompleted ? "completado" : "pendiente"} />
                     <Field
-                      label="Telegram"
-                      value={row.telegramLinked ? `···${row.telegramChatIdTail}` : "sin conectar"}
+                      label={t.admin.fieldOnboarding}
+                      value={
+                        row.onboardingCompleted
+                          ? t.admin.onboardingDone
+                          : t.admin.onboardingPending
+                      }
                     />
-                    <Field label="Categorías" value={row.categoryCount} />
-                    <Field label="Prioridad" value={row.priorityCount} />
-                    <Field label="Creada" value={shortDate(row.createdAt)} />
+                    <Field
+                      label={t.admin.fieldTelegram}
+                      value={
+                        row.telegramLinked
+                          ? `···${row.telegramChatIdTail}`
+                          : t.admin.telegramUnlinked
+                      }
+                    />
+                    <Field label={t.admin.fieldCategories} value={row.categoryCount} />
+                    <Field label={t.admin.fieldPriority} value={row.priorityCount} />
+                    <Field label={t.admin.fieldCreated} value={shortDate(row.createdAt, language)} />
                   </dl>
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
@@ -461,20 +492,20 @@ export default function AdminPage() {
                       onClick={() => void act(row.id, "reset_onboarding")}
                       disabled={!row.onboardingCompleted}
                     >
-                      Repetir onboarding
+                      {t.admin.resetOnboarding}
                     </RowAction>
                     <RowAction
                       onClick={() => void act(row.id, "unlink_telegram")}
                       disabled={!row.telegramLinked}
                     >
-                      Desconectar Telegram
+                      {t.admin.unlinkTelegram}
                     </RowAction>
                     {!isViewer && !row.isAdminAccount && (
                       <RowAction
                         tone="late"
                         onClick={() => setConfirming(isConfirming ? null : { id: row.id, typed: "" })}
                       >
-                        {isConfirming ? "Cancelar" : "Eliminar cuenta"}
+                        {isConfirming ? t.admin.cancel : t.admin.deleteAccount}
                       </RowAction>
                     )}
                   </div>
@@ -482,8 +513,11 @@ export default function AdminPage() {
                   {isConfirming && (
                     <div className="mt-3 rounded-card border border-late/30 bg-late-soft p-3">
                       <p className="text-[13px] text-ink">
-                        Esto borra la cuenta y sus <b>{row.taskCount} tareas</b>. No hay forma de
-                        deshacerlo. Escribe <b className="font-mono">{row.email}</b> para confirmar.
+                        {t.admin.confirmDeleteBefore}
+                        <b>{t.admin.confirmDeleteTasks(row.taskCount)}</b>
+                        {t.admin.confirmDeleteAfter}
+                        <b className="font-mono">{row.email}</b>
+                        {t.admin.confirmDeleteEnd}
                       </p>
                       <div className="mt-2.5 flex flex-wrap gap-2">
                         <input
@@ -499,7 +533,7 @@ export default function AdminPage() {
                           onClick={() => void remove(row, confirming.typed)}
                           className="rounded-field bg-late px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Eliminar definitivamente
+                          {t.admin.deleteForever}
                         </button>
                       </div>
                     </div>
@@ -516,13 +550,14 @@ export default function AdminPage() {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   return (
     <main className="min-h-screen bg-bg px-5 py-9 sm:px-8">
       <div className="mx-auto w-full max-w-4xl">
         <header className="mb-8 flex items-center gap-3 border-b border-line pb-5">
           <Wordmark href="/" />
           <span className="rounded-chip border border-line bg-sunken px-3 py-1 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            admin
+            {t.admin.eyebrow}
           </span>
         </header>
         {children}
@@ -648,14 +683,21 @@ function RowAction({
   );
 }
 
-/** "5-Sep" style, matching the cards. Empty string when there is no date. */
-function shortDate(iso: string | null): string {
+/**
+ * "5-Sep", igual que las tarjetas.
+ *
+ * Era una **cuarta copia** de la tabla de meses, con la suya en español fija.
+ * Ahora usa `formatShortDate`, que es la misma que dibuja las tarjetas y la que
+ * calza con `fmtDate` del bot.
+ */
+function shortDate(iso: string | null, language: AppLanguage): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const base = `${date.getDate()}-${months[date.getMonth()]}`;
-  return date.getFullYear() === new Date().getFullYear()
-    ? base
-    : `${base}-${String(date.getFullYear()).slice(2)}`;
+  return formatShortDate(
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+      date.getDate()
+    ).padStart(2, "0")}`,
+    language
+  );
 }

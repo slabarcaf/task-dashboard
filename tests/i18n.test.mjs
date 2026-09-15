@@ -60,7 +60,10 @@ const TRANSLATED = [
   "src/components/VoiceButton.tsx",
   "src/components/ui/Toast.tsx",
   // Fase 3 — onboarding.
-  "src/components/OnboardingScreen.tsx"
+  "src/components/OnboardingScreen.tsx",
+  // Fases 4 y 5 — errores, invitación y admin.
+  "src/app/admin/page.tsx",
+  "src/hooks/useTasks.ts"
 ];
 
 /**
@@ -137,7 +140,9 @@ const SAME_IN_BOTH = new Set([
   "Personal", // identificador de categoría, idéntico en ambos
   "Networking",
   "Golf club",
-  "Recruiting"
+  "Recruiting",
+  "admin", // la etiqueta de la pantalla, que es la misma palabra en los dos
+  "Onboarding" // préstamo del inglés que el español ya usa tal cual
 ]);
 
 /** Compila el catálogo y lo evalúa. Es TypeScript; Next lo compila, y acá esbuild. */

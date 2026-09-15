@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
   const form = await request.formData().catch(() => null);
   const audio = form?.get("audio");
   if (!(audio instanceof Blob) || audio.size === 0) {
-    return NextResponse.json({ ok: false, error: "No llegó ningún audio." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "no_audio" }, { status: 400 });
   }
   if (audio.size > MAX_BYTES) {
-    return NextResponse.json({ ok: false, error: "La nota es demasiado larga." }, { status: 413 });
+    return NextResponse.json({ ok: false, error: "audio_too_long" }, { status: 413 });
   }
 
   const prefs = await getUserPreferencesByUserId(user.id);
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       const detail = (await response.text()).slice(0, 200);
       console.warn(`[transcribe] whisper HTTP ${response.status}: ${detail}`);
       return NextResponse.json(
-        { ok: false, error: "No se pudo transcribir." },
+        { ok: false, error: "transcribe_failed" },
         { status: 502 }
       );
     }
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const aborted = error instanceof Error && error.name === "AbortError";
     return NextResponse.json(
-      { ok: false, error: aborted ? "La transcripción tardó demasiado." : "No se pudo transcribir." },
+      { ok: false, error: aborted ? "transcribe_timeout" : "transcribe_failed" },
       { status: 504 }
     );
   } finally {

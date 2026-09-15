@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { useT } from "@/lib/i18n/provider";
+import { apiErrorCodeText } from "@/lib/i18n/errors";
 
 type VoiceButtonProps = {
   disabled?: boolean;
@@ -100,11 +101,10 @@ export function VoiceButton({ disabled, onTranscript, onError }: VoiceButtonProp
         };
 
         if (!response.ok || !data.ok) {
-          onError(
-            data.error === "not_configured"
-              ? t.voice.notConfigured
-              : data.error || t.voice.failed
-          );
+          // La ruta devuelve un código, no una frase — igual que el resto de
+          // la API desde la fase 4. Este componente no pasa por
+          // `parseJsonOrThrow`, así que traduce el código a mano.
+          onError(apiErrorCodeText(t, data.error) || t.voice.failed);
           return;
         }
         if (!data.text) {

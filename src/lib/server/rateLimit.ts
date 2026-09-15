@@ -60,7 +60,7 @@ export function clientIp(request: Request): string {
 
 export function tooManyRequests(retryAfterSeconds: number) {
   return new Response(
-    JSON.stringify({ ok: false, error: "Demasiadas peticiones. Intenta más tarde." }),
+    JSON.stringify({ ok: false, error: "rate_limited" }),
     {
       status: 429,
       headers: {

@@ -22,13 +22,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ ok: false, error: "Id inválido" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
   }
 
   const body = (await request.json().catch(() => ({}))) as { status?: string };
   const wantsPaid = /pagad/i.test(String(body.status || ""));
   const debt = await updateDebtForUser(id, user.id, wantsPaid ? "Pagado" : "Por pagar");
-  if (!debt) return NextResponse.json({ ok: false, error: "No existe" }, { status: 404 });
+  if (!debt) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true, debt });
 }
 
@@ -39,9 +39,9 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ ok: false, error: "Id inválido" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
   }
   const removed = await deleteDebtForUser(id, user.id);
-  if (!removed) return NextResponse.json({ ok: false, error: "No existe" }, { status: 404 });
+  if (!removed) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

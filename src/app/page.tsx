@@ -18,6 +18,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
 import { useLanguage, useSetLanguage, useT } from "@/lib/i18n/provider";
+import { apiErrorText } from "@/lib/i18n/errors";
 import {
   Debt,
   addDebt,
@@ -46,6 +47,10 @@ export default function HomePage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isPreferencesLoading, setIsPreferencesLoading] = useState(false);
   const [userTipoOptions, setUserTipoOptions] = useState<string[]>([]);
+  // La zona horaria de la cuenta, la misma que lee el bot. Vacía hasta que las
+  // preferencias llegan; quien la usa cae a la zona del dispositivo mientras
+  // tanto, que es lo más cercano a la verdad que se puede decir sin la cuenta.
+  const [userTimezone, setUserTimezone] = useState("");
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [isSavingOnboarding, setIsSavingOnboarding] = useState(false);
 
@@ -115,7 +120,7 @@ export default function HomePage() {
       try {
         setCurrentUser(await signInWithGoogle(credential));
       } catch (signInError) {
-        setError(signInError instanceof Error ? signInError.message : t.errors.signIn);
+        setError(apiErrorText(t, signInError));
       } finally {
         setIsSigningIn(false);
       }
@@ -130,6 +135,7 @@ export default function HomePage() {
       setCurrentUser(null);
       setTasks([]);
       setUserTipoOptions([]);
+      setUserTimezone("");
       setNeedsOnboarding(false);
     }
   }, [setTasks]);
@@ -143,6 +149,7 @@ export default function HomePage() {
       const preferences = await getUserPreferences();
       const options = normalizeTipoOptions(preferences.tipoOptions);
       setUserTipoOptions(options);
+      setUserTimezone(preferences.timezone || "");
       setNeedsOnboarding(!preferences.onboardingCompleted);
 
       // La cuenta manda sobre el dispositivo: es la misma preferencia que lee el
@@ -239,6 +246,7 @@ export default function HomePage() {
           briefEvening: answers.briefEvening
         });
         setUserTipoOptions(preferences.tipoOptions);
+        setUserTimezone(preferences.timezone || "");
         setNeedsOnboarding(false);
         // A la lista y no al tablero, solo esta vez. Con una sola tarea el
         // tablero son cuatro columnas vacías y la tarea que la persona acaba de
@@ -248,7 +256,7 @@ export default function HomePage() {
         pushToast(t.toast.ready);
       } catch (onboardingError) {
         setError(
-          onboardingError instanceof Error ? onboardingError.message : t.errors.save
+          apiErrorText(t, onboardingError)
         );
       } finally {
         setIsSavingOnboarding(false);
@@ -308,7 +316,7 @@ export default function HomePage() {
       setDebts(await listDebts());
       setDebtsLoaded(true);
     } catch (debtsError) {
-      setError(debtsError instanceof Error ? debtsError.message : t.errors.debtsLoad);
+      setError(apiErrorText(t, debtsError));
       setDebtsLoaded(true);
     }
   }, [t]);
@@ -324,7 +332,7 @@ export default function HomePage() {
         setDebts((current) => [debt, ...current]);
         pushToast(t.toast.debtAdded);
       } catch (addError) {
-        setError(addError instanceof Error ? addError.message : t.errors.debtAdd);
+        setError(apiErrorText(t, addError));
         pushToast(t.errors.debtAddShort, "error");
       }
     },
@@ -338,7 +346,7 @@ export default function HomePage() {
         const updated = await setDebtStatus(debt.id, status);
         setDebts((current) => current.map((row) => (row.id === debt.id ? updated : row)));
       } catch (updateError) {
-        pushToast(updateError instanceof Error ? updateError.message : t.errors.update, "error");
+        pushToast(apiErrorText(t, updateError), "error");
       } finally {
         setDebtPending((current) => ({ ...current, [debt.id]: false }));
       }
@@ -384,7 +392,7 @@ export default function HomePage() {
         });
       } catch (deleteError) {
         setDebts(snapshot);
-        pushToast(deleteError instanceof Error ? deleteError.message : t.errors.delete, "error");
+        pushToast(apiErrorText(t, deleteError), "error");
       }
     },
     [debts, markDebt, pushToast, pushUndoToast, t]
@@ -407,7 +415,7 @@ export default function HomePage() {
         setTasks((current) => [taskFromPayload(created.rowId, payload), ...current]);
         pushToast(t.toast.taskAdded);
       } catch (addError) {
-        setError(addError instanceof Error ? addError.message : t.errors.taskAdd);
+        setError(apiErrorText(t, addError));
         pushToast(t.errors.taskAddShort, "error");
       }
     },
@@ -511,7 +519,7 @@ export default function HomePage() {
         });
       } catch (deleteError) {
         setTasks(snapshot);
-        pushToast(deleteError instanceof Error ? deleteError.message : t.errors.delete, "error");
+        pushToast(apiErrorText(t, deleteError), "error");
       }
     },
     [pushToast, pushUndoToast, setTasks, t, tasks]
@@ -686,6 +694,7 @@ export default function HomePage() {
         <DebtsView
           debts={debts}
           isLoading={!debtsLoaded}
+          timeZone={userTimezone}
           pendingIds={debtPending}
           onAdd={handleAddDebt}
           onToggleStatus={handleToggleDebt}

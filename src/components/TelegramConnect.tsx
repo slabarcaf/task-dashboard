@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { TelegramLink, createTelegramLink, getCurrentUser } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useT } from "@/lib/i18n/provider";
+import { apiErrorText } from "@/lib/i18n/errors";
 
 type TelegramConnectProps = {
   /** Mientras es false se ofrece conectar; cuando pasa a true, se felicita. */
@@ -95,7 +96,7 @@ export function TelegramConnect({ connected, onConnected, className }: TelegramC
             try {
               setLink(await createTelegramLink());
             } catch (e) {
-              setError(e instanceof Error ? e.message : t.telegram.codeFailed);
+              setError(apiErrorText(t, e));
             } finally {
               setBusy(false);
             }

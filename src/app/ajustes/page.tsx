@@ -14,6 +14,7 @@ import { categoryLabel } from "@/lib/categories";
 import { categoryHue } from "@/lib/categoryColor";
 import { cn } from "@/lib/cn";
 import { useLanguage, useSetLanguage, useT } from "@/lib/i18n/provider";
+import { apiErrorText } from "@/lib/i18n/errors";
 import { timeInZone } from "@/lib/i18n/format";
 import { AuthUser, UserPreferences } from "@/lib/types";
 
@@ -70,13 +71,19 @@ export default function SettingsPage() {
       const me = await getCurrentUser();
       setUser(me);
       if (!me) return setState("signed_out");
-      setPrefs(await getUserPreferences());
+      const loaded = await getUserPreferences();
+      setPrefs(loaded);
+      // La misma reconciliación que hace la portada. Hace falta acá también:
+      // esta ruta se puede abrir directo, y sin esto una cookie desfasada
+      // dejaría la pantalla en un idioma que la cuenta no tiene hasta que
+      // alguien pase por "/".
+      setLanguage(loaded.language);
       setState("ready");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : t.settings.saveFailed);
+      setError(apiErrorText(t, loadError));
       setState("ready");
     }
-  }, [t]);
+  }, [setLanguage, t]);
 
   useEffect(() => {
     void load();
@@ -104,7 +111,7 @@ export default function SettingsPage() {
       setNote({ kind: "saved", setting: key });
       window.setTimeout(() => setNote(null), 2500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t.settings.saveFailed);
+      setError(apiErrorText(t, saveError));
     } finally {
       setBusy(null);
     }
@@ -194,7 +201,7 @@ export default function SettingsPage() {
                   await load();
                   setNote({ kind: "disconnected" });
                 } catch (e) {
-                  setError(e instanceof Error ? e.message : t.settings.disconnectFailed);
+                  setError(apiErrorText(t, e));
                 } finally {
                   setBusy(null);
                 }

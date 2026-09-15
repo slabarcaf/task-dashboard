@@ -30,11 +30,11 @@ export async function POST(request: NextRequest) {
   const name = String(body.name || "").trim();
   const amount = Number(body.amount);
 
-  if (!name) return NextResponse.json({ ok: false, error: "Falta el nombre." }, { status: 400 });
+  if (!name) return NextResponse.json({ ok: false, error: "missing_name" }, { status: 400 });
   // Rejected rather than coerced: a debt of NaN or of zero is a mistake, and
   // storing it means someone reconciles it by hand later.
   if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ ok: false, error: "El monto tiene que ser un número mayor que cero." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
   }
 
   const debt = await createDebtForUser(user.id, {

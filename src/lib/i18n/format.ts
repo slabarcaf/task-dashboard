@@ -77,3 +77,41 @@ export function longWeekdayDate(iso: string, language: AppLanguage): string {
     return iso;
   }
 }
+
+/**
+ * El día del calendario en que cae un instante, visto desde una zona horaria.
+ * Entra un timestamp ISO (UTC, como lo serializa Postgres desde un TIMESTAMPTZ)
+ * y sale "YYYY-MM-DD", listo para `formatShortDate`.
+ *
+ * Existe porque `createdAt.slice(0, 10)` toma el día **en UTC**, no el del que
+ * mira. Medido, no supuesto: una deuda creada el 2026-09-14 a las 20:43 en
+ * America/Los_Angeles se dibujaba "15-Sep", el día siguiente, porque en UTC ya
+ * eran las 03:43 del 15. Entre las 17:00 y la medianoche —o sea, toda la tarde—
+ * la fecha estaba corrida un día.
+ *
+ * `timeZone` vacío significa la zona del dispositivo: es lo que hay mientras las
+ * preferencias de la cuenta todavía no llegan, y es una respuesta mucho mejor
+ * que UTC. Una zona inválida no debe romper la pantalla, así que cae al recorte
+ * de siempre; el comportamiento viejo es el peor caso, no el normal.
+ */
+export function isoDateInZone(timestamp: string, timeZone: string): string {
+  const fallback = String(timestamp || "").slice(0, 10);
+  const instant = new Date(timestamp);
+  if (Number.isNaN(instant.getTime())) return fallback;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(instant);
+    const at = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    const year = at("year");
+    const month = at("month");
+    const day = at("day");
+    if (!year || !month || !day) return fallback;
+    return `${year.padStart(4, "0")}-${month}-${day}`;
+  } catch {
+    return fallback;
+  }
+}

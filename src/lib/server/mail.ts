@@ -13,6 +13,8 @@
  * `INVITE_FROM` — sirve para probar, y para producción conviene un dominio.
  */
 
+import { DEFAULT_LANGUAGE, type AppLanguage } from "@/lib/language";
+
 export type MailResult =
   | { sent: true }
   | {
@@ -30,13 +32,114 @@ export type MailResult =
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+/**
+ * La copia de la invitación, en los dos idiomas.
+ *
+ * Vive **aquí y no en el catálogo de la interfaz** por dos razones: el correo
+ * tiene una voz distinta a la de la app, y traer 15KB de textos de pantalla a un
+ * módulo de servidor que solo manda un correo no le sirve a nadie.
+ *
+ * Descartado un correo bilingüe con las dos versiones una sobre otra: el punto
+ * entero de este correo es que las dos puertas están *explicadas*, y al doble de
+ * largo es un peor correo. El idioma lo elige quien invita, y esa elección
+ * **crea la fila con ese idioma**, así que la persona abre la app ya en el
+ * correcto.
+ */
+type InviteCopy = {
+  subject: string;
+  invitedYou: (by: string) => string;
+  leadBold: string;
+  lead: string;
+  doorWebTitle: string;
+  doorWebBody: (to: string) => string;
+  doorWebButton: string;
+  doorChatTitle: string;
+  doorChatBody: string;
+  doorChatButton: string;
+  footer: string;
+  /** El cuerpo en texto plano, que es lo que ve quien filtra HTML. */
+  plain: (input: InviteInput) => string[];
+};
+
+const INVITE: Record<AppLanguage, InviteCopy> = {
+  es: {
+    subject: "Te invitaron a Sydney",
+    invitedYou: (by) => `${by} te invitó`,
+    leadBold: "escribes como a una persona",
+    lead: "Le dices “pagar la luz el viernes” y la anota con la fecha puesta. Son dos lados de",
+    doorWebTitle: "La web",
+    doorWebBody: (to) => `Para ver y ordenar tus tareas. Entra con <b style="color:#151A3A;">${to}</b>.`,
+    doorWebButton: "Abrir la web",
+    doorChatTitle: "Telegram",
+    doorChatBody:
+      "Es donde Sydney te habla a ti: te manda un resumen en la mañana y otro en la noche, y le escribes —o le mandas un audio— desde el teléfono, sin abrir nada.",
+    doorChatButton: "Abrir el chat",
+    footer: "El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla.",
+    plain: ({ to, appUrl, telegramLink, invitedBy }) => [
+      `${invitedBy} te invitó a Sydney.`,
+      "",
+      "Sydney es una lista de tareas a la que le escribes como a una persona.",
+      'Le dices "pagar la luz el viernes" y la anota con la fecha puesta.',
+      "",
+      "Son dos lados de la misma cuenta, y puedes empezar por cualquiera:",
+      "",
+      `1) La web, para ver y ordenar tus tareas. Entra con ${to}:`,
+      `   ${appUrl}`,
+      "",
+      "2) Telegram, que es donde Sydney te habla a ti: te manda un resumen en la",
+      "   mañana y otro en la noche, y le escribes —o le mandas un audio— desde el",
+      "   teléfono, sin abrir nada. Este enlace abre el chat y te deja dentro:",
+      `   ${telegramLink}`,
+      "",
+      "El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla."
+    ]
+  },
+  en: {
+    subject: "You have been invited to Sydney",
+    invitedYou: (by) => `${by} invited you`,
+    leadBold: "write to the way you would tell a person",
+    lead: "You say “pay the electricity bill friday” and it is written down with the date already set. They are two sides of",
+    doorWebTitle: "The web",
+    doorWebBody: (to) => `To see and sort your tasks. Sign in with <b style="color:#151A3A;">${to}</b>.`,
+    doorWebButton: "Open the web app",
+    doorChatTitle: "Telegram",
+    doorChatBody:
+      "This is where Sydney talks to you: she sends a summary in the morning and another in the evening, and you write to her — or send her a voice note — from your phone, without opening anything.",
+    doorChatButton: "Open the chat",
+    footer: "The Telegram link works for 30 days. If you do not have the app, it takes you to install it.",
+    plain: ({ to, appUrl, telegramLink, invitedBy }) => [
+      `${invitedBy} invited you to Sydney.`,
+      "",
+      "Sydney is a task list you write to the way you would tell a person.",
+      'You say "pay the electricity bill friday" and it is written down with the date set.',
+      "",
+      "They are two sides of the same account, and you can start with either:",
+      "",
+      `1) The web, to see and sort your tasks. Sign in with ${to}:`,
+      `   ${appUrl}`,
+      "",
+      "2) Telegram, which is where Sydney talks to you: she sends a summary in the",
+      "   morning and another in the evening, and you write to her — or send a voice",
+      "   note — from your phone, without opening anything. This link opens the chat",
+      "   and leaves you inside:",
+      `   ${telegramLink}`,
+      "",
+      "The Telegram link works for 30 days. If you do not have the app, it takes you to install it."
+    ]
+  }
+};
+
 export function mailIsConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
 type InviteInput = { to: string; appUrl: string; telegramLink: string; invitedBy: string };
 
-export async function sendInviteEmail(input: InviteInput): Promise<MailResult> {
+export async function sendInviteEmail(
+  input: InviteInput,
+  language: AppLanguage = DEFAULT_LANGUAGE
+): Promise<MailResult> {
+  const copy = INVITE[language] || INVITE[DEFAULT_LANGUAGE];
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { sent: false, reason: "not_configured" };
 
@@ -49,9 +152,9 @@ export async function sendInviteEmail(input: InviteInput): Promise<MailResult> {
       body: JSON.stringify({
         from,
         to: [input.to],
-        subject: "Te invitaron a Sydney",
-        html: inviteHtml(input),
-        text: inviteText(input)
+        subject: copy.subject,
+        html: inviteHtml(input, copy, language),
+        text: inviteText(input, copy)
       })
     });
 
@@ -86,25 +189,26 @@ export async function sendInviteEmail(input: InviteInput): Promise<MailResult> {
 }
 
 /** Texto plano primero: es lo que ve quien filtra HTML, y no es poca gente. */
-function inviteText({ to, appUrl, telegramLink, invitedBy }: InviteInput): string {
-  return [
-    `${invitedBy} te invitó a Sydney.`,
-    "",
-    "Sydney es una lista de tareas a la que le escribes como a una persona.",
-    'Le dices "pagar la luz el viernes" y la anota con la fecha puesta.',
-    "",
-    "Son dos lados de la misma cuenta, y puedes empezar por cualquiera:",
-    "",
-    `1) La web, para ver y ordenar tus tareas. Entra con ${to}:`,
-    `   ${appUrl}`,
-    "",
-    "2) Telegram, que es donde Sydney te habla a ti: te manda un resumen en la",
-    "   mañana y otro en la noche, y le escribes —o le mandas un audio— desde el",
-    "   teléfono, sin abrir nada. Este enlace abre el chat y te deja dentro:",
-    `   ${telegramLink}`,
-    "",
-    "El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla."
-  ].join("\n");
+function inviteText(input: InviteInput, copy: InviteCopy): string {
+  return copy.plain(input).join("\n");
+}
+
+/**
+ * El mismo texto, para pegarlo a mano cuando el envío no salió.
+ *
+ * Se exporta en vez de reescribirlo en la pantalla de admin, que es donde vivía
+ * una segunda copia — con su propia redacción y su propio idioma. Dos textos que
+ * dicen lo mismo son dos textos que se separan: el de admin ya se había quedado
+ * atrás una vez.
+ *
+ * Va sin markdown a propósito: esto se pega tal cual en WhatsApp o en un correo,
+ * donde los asteriscos salen como asteriscos.
+ */
+export function manualInviteText(
+  input: InviteInput,
+  language: AppLanguage = DEFAULT_LANGUAGE
+): string {
+  return inviteText(input, INVITE[language] || INVITE[DEFAULT_LANGUAGE]);
 }
 
 /**
@@ -118,7 +222,11 @@ function inviteText({ to, appUrl, telegramLink, invitedBy }: InviteInput): strin
  * producto son una elección, y para quien lo recibe por primera vez —que es todo
  * el mundo que recibe esto— son dos enlaces sin motivo para tocar ninguno.
  */
-function inviteHtml({ to, appUrl, telegramLink, invitedBy }: InviteInput): string {
+function inviteHtml(
+  { to, appUrl, telegramLink, invitedBy }: InviteInput,
+  copy: InviteCopy,
+  language: AppLanguage
+): string {
   const esc = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -145,47 +253,32 @@ function inviteHtml({ to, appUrl, telegramLink, invitedBy }: InviteInput): strin
         </table>`;
 
   return `<!doctype html>
-<html lang="es"><body style="margin:0;padding:0;background:#F7F8FC;">
+<html lang="${language}"><body style="margin:0;padding:0;background:#F7F8FC;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F8FC;padding:32px 16px;">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #E2E5F0;border-radius:18px;overflow:hidden;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;">
       <tr><td style="background:linear-gradient(150deg,#232B63,#151A3A);padding:28px 28px 24px;">
         <div style="color:#FFFFFF;font-size:17px;font-weight:700;letter-spacing:-.01em;">Sydney</div>
-        <div style="color:#B9BEE0;font-size:14px;margin-top:6px;">${esc(invitedBy)} te invitó</div>
+        <div style="color:#B9BEE0;font-size:14px;margin-top:6px;">${esc(copy.invitedYou(invitedBy))}</div>
       </td></tr>
 
       <tr><td style="padding:26px 28px 4px;">
         <p style="margin:0 0 12px;color:#151A3A;font-size:16px;line-height:1.5;">
-          Es una lista de tareas a la que le <b>escribes como a una persona</b>.
+          <b>${copy.leadBold}</b>
         </p>
         <p style="margin:0 0 22px;color:#5B6188;font-size:14.5px;line-height:1.6;">
-          Le dices “pagar la luz el viernes” y la anota con la fecha puesta. Son dos lados de
-          <b style="color:#151A3A;">la misma cuenta</b> — puedes empezar por cualquiera.
+          ${copy.lead}
         </p>
       </td></tr>
 
       <tr><td style="padding:0 28px;">
-        ${door(
-          "1",
-          "La web",
-          `Para ver y ordenar tus tareas. Entra con <b style="color:#151A3A;">${esc(to)}</b>.`,
-          appUrl,
-          "Abrir la web",
-          true
-        )}
-        ${door(
-          "2",
-          "Telegram",
-          "Es donde Sydney te habla a ti: te manda un resumen en la mañana y otro en la noche, y le escribes —o le mandas un audio— desde el teléfono, sin abrir nada.",
-          telegramLink,
-          "Abrir el chat",
-          false
-        )}
+        ${door("1", copy.doorWebTitle, copy.doorWebBody(esc(to)), appUrl, copy.doorWebButton, true)}
+        ${door("2", copy.doorChatTitle, copy.doorChatBody, telegramLink, copy.doorChatButton, false)}
       </td></tr>
 
       <tr><td style="padding:6px 28px 26px;">
         <p style="margin:0;color:#8A90B0;font-size:12.5px;line-height:1.6;">
-          El enlace de Telegram sirve 30 días. Si no tienes la app, te lleva a instalarla.
+          ${copy.footer}
         </p>
         <p style="margin:10px 0 0;color:#A8ADC6;font-size:11.5px;line-height:1.5;word-break:break-all;">
           ${esc(appUrl)}<br>${esc(telegramLink)}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeLanguage } from "@/lib/language";
 import { crossOriginRefused, getCurrentUserFromCookies, originIsTrusted } from "@/lib/server/auth";
 import { isAdminUser } from "@/lib/server/admin";
-import { sendInviteEmail } from "@/lib/server/mail";
+import { manualInviteText, sendInviteEmail } from "@/lib/server/mail";
 import { LIMITS, consumeRateLimit, tooManyRequests } from "@/lib/server/rateLimit";
 import {
   INVITE_CODE_TTL_MINUTES,
@@ -77,14 +78,20 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isAdminUser(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = (await request.json().catch(() => ({}))) as { email?: string; name?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    email?: string;
+    name?: string;
+    language?: string;
+  };
   const email = String(body.email || "").trim().toLowerCase();
   const name = String(body.name || "").trim();
+  // El idioma de la invitación, que además es el de la cuenta que se crea.
+  const language = normalizeLanguage(body.language);
 
   // Deliberately loose: the authority on whether an address works is Google, at
   // sign-in. This only catches a typo that could never be an address at all.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-    return NextResponse.json({ error: "Ese correo no parece válido." }, { status: 400 });
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
   const gate = await consumeRateLimit(`invite:${user.id}`, LIMITS.invite);
@@ -92,10 +99,10 @@ export async function POST(request: NextRequest) {
 
   const existing = await findUserByEmail(email);
   if (existing) {
-    return NextResponse.json({ error: "Ya existe una cuenta con ese correo." }, { status: 409 });
+    return NextResponse.json({ error: "email_taken" }, { status: 409 });
   }
 
-  const created = await createUser({ email, name });
+  const created = await createUser({ email, name, language });
 
   // La dirección real desde la que llegó esta petición, no una constante que se
   // queda vieja el día que cambie el dominio.
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
     appUrl: origin,
     telegramLink,
     invitedBy: user.name || user.email
-  });
+  }, language);
 
   return NextResponse.json({
     ok: true,
@@ -133,7 +140,13 @@ export async function POST(request: NextRequest) {
           // para saber qué hacer.
           detail: mail.detail,
           appUrl: origin,
-          telegramLink
+          telegramLink,
+          // El texto para pegar a mano viaja armado desde aquí. La pantalla lo
+          // reescribía por su cuenta, en español y con otra redacción.
+          manualText: manualInviteText(
+            { to: email, appUrl: origin, telegramLink, invitedBy: user.name || user.email },
+            language
+          )
         }
   });
 }

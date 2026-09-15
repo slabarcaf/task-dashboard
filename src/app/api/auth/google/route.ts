@@ -76,6 +76,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: false, error: "No se pudo entrar." }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "signin_failed" }, { status: 401 });
   }
 }

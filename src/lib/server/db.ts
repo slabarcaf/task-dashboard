@@ -891,18 +891,25 @@ export async function createUser(input: {
   email: string;
   name?: string;
   googleSub?: string;
+  /**
+   * El idioma con el que la cuenta nace. Lo elige quien invita, y por eso
+   * importa: sin esto la fila arranca con el valor por omisión de la columna y
+   * quien fue invitado en inglés abría la app en español la primera vez.
+   */
+  language?: AppLanguage;
 }): Promise<DbUser> {
   await initialize();
 
   const email = input.email.trim().toLowerCase();
   const name = (input.name || "").trim();
   const googleSub = input.googleSub?.trim() || null;
+  const language = normalizeLanguage(input.language);
 
   const result = await getPool().query<UserRow>(
-    `INSERT INTO users (email, name, google_sub, updated_at)
-     VALUES ($1, $2, $3, NOW())
+    `INSERT INTO users (email, name, google_sub, language, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
      RETURNING id, email, name, telegram_chat_id`,
-    [email, name, googleSub]
+    [email, name, googleSub, language]
   );
 
   return toUser(result.rows[0]);

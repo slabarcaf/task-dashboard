@@ -12,20 +12,39 @@ import {
   UpdateTaskResponse
 } from "@/lib/types";
 
+/**
+ * Lo que tira el cliente cuando una ruta dice que no.
+ *
+ * Lleva el **código**, no una frase: la frase la pone `apiErrorText` con el
+ * catálogo del idioma vigente. El `message` queda con el código a propósito,
+ * para que un log o un `console.error` siga siendo legible por una persona que
+ * depura — pero nunca se le muestra a nadie.
+ */
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  constructor(code: string, status = 0) {
+    super(code);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new Error(`API error ${response.status}: Invalid JSON response`);
+    throw new ApiError("bad_response", response.status);
   }
 
   if (!response.ok) {
-    const message =
+    const code =
       typeof payload === "object" && payload && "error" in payload
         ? String((payload as { error?: string }).error)
-        : `API error ${response.status}`;
-    throw new Error(message);
+        : `http_${response.status}`;
+    throw new ApiError(code, response.status);
   }
 
   if (
@@ -36,8 +55,8 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   ) {
     const message =
       "error" in payload
-        ? String((payload as { error?: string }).error || "Operation failed")
-        : "Operation failed";
+        ? String((payload as { error?: string }).error || "operation_failed")
+        : "operation_failed";
     throw new Error(message);
   }
 
@@ -111,14 +130,15 @@ export async function signInWithGoogle(credential: string): Promise<AuthUser> {
     body: JSON.stringify({ credential })
   });
 
+  // Los dos estados que esta puerta trata distinto. El detalle del servidor se
+  // ignora a propósito: viene en un idioma que el servidor eligió sin saber cuál
+  // es el de quien mira.
   if (response.status === 403) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(
-      payload?.detail || "Sydney es por invitación. Pídesela a quien te habló de esto."
-    );
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new ApiError(payload?.error || "not_invited", 403);
   }
   if (response.status === 429) {
-    throw new Error("Demasiados intentos. Espera unos minutos.");
+    throw new ApiError("too_many_signin", 429);
   }
 
   const data = await parseJsonOrThrow<AuthGoogleResponse>(response);
@@ -265,13 +285,19 @@ export type InviteOutcome =
       detail?: string;
       appUrl: string;
       telegramLink: string;
+      /** Armado en el servidor, en el idioma de la invitación. */
+      manualText: string;
     };
 
-export async function createAdminUser(email: string, name: string): Promise<InviteOutcome> {
+export async function createAdminUser(
+  email: string,
+  name: string,
+  language: AppLanguage
+): Promise<InviteOutcome> {
   const response = await fetch("/api/admin/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name })
+    body: JSON.stringify({ email, name, language })
   });
   const data = await parseJsonOrThrow<{ ok: boolean; invite: InviteOutcome }>(response);
   return data.invite;
