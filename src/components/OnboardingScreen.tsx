@@ -189,6 +189,23 @@ export function OnboardingScreen({
     (name) => !CANONICAL_CATEGORIES.some((canonical) => canonical.toLowerCase() === name.toLowerCase())
   );
 
+  /**
+   * Inventó una categoría y no marcó ninguna de las de arriba.
+   *
+   * Es una situación real, no hipotética: el 2026-09-17 alguien escribió "Visa",
+   * apretó Agregar y siguió, y su cuenta quedó con **una sola** categoría. Los
+   * ocho chips en gris se leen como ejemplos y no como una elección pendiente.
+   *
+   * Se avisa, no se bloquea, y **no se marcan las ocho por omisión**: eso ya se
+   * hizo una vez y fue peor — le escribía a la base una preferencia que nadie
+   * había declarado, y después le preguntaba "elige las que uses de verdad" con
+   * todas ya marcadas.
+   *
+   * La condición importa: solo cuando ya mostró intención agregando la suya. Un
+   * aviso apenas se abre la pantalla es regañar antes de que pase nada.
+   */
+  const onlyOwnCategories = invented.length > 0 && invented.length === normalizeTipoOptions(selected).length;
+
   const amountValue = Number(String(debtAmount).replace(",", "."));
   const debtIsUsable = debtName.trim().length > 0 && Number.isFinite(amountValue) && amountValue > 0;
 
@@ -364,6 +381,12 @@ export function OnboardingScreen({
                   {t.onboarding.customAdd}
                 </button>
               </div>
+
+              {onlyOwnCategories && (
+                <p className="mt-4 rounded-card border border-amber/30 bg-amber-soft px-3.5 py-2.5 text-[13px] leading-relaxed text-amber-ink">
+                  {t.onboarding.onlyYours}
+                </p>
+              )}
 
               {invented.length > 0 && (
                 <div className="mt-4">

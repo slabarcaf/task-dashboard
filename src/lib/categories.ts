@@ -30,6 +30,17 @@ import type { AppLanguage } from "@/lib/language";
 
 export type { AppLanguage } from "@/lib/language";
 
+/**
+ * El cubo de "todavía sin clasificar".
+ *
+ * No es una categoría como las otras: es el destino por omisión de cualquier
+ * tarea que no cae en ninguna. `page.tsx` ya lo mete en la lista que dibuja pase
+ * lo que pase, `defaultCategory` lo busca antes que a nadie, y los presets del
+ * bot lo incluyen. Está acá para que todo eso deje de ser un string suelto
+ * repetido en cinco archivos.
+ */
+export const FALLBACK_CATEGORY = "Otros";
+
 const CATEGORY_LABELS: Record<string, Record<AppLanguage, string>> = {
   Work: { es: "Trabajo", en: "Work" },
   Estudios: { es: "Estudios", en: "Studies" },

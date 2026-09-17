@@ -268,6 +268,8 @@ export const en: Messages = {
       "Pick the ones you actually use. They group your tasks, and you can change them whenever you want.",
     customPlaceholder: "Missing one? Write it here",
     customAdd: "Add",
+    onlyYours:
+      "You have not ticked any of the ones above. You can continue like this — anything that does not fit yours lands in Other — or tap the ones you actually use.",
     inventedTitle: "Yours",
     inventedRemove: "Remove",
     briefsTitle: "When should I send you the day's summary?",

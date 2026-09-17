@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Pool } from "pg";
 import { normalizeLanguage, type AppLanguage } from "@/lib/language";
+import { FALLBACK_CATEGORY } from "@/lib/categories";
 
 type TaskRow = {
   id: number;
@@ -824,6 +825,27 @@ export async function saveUserPreferencesByUserId(
     normalized = normalizeTipoOptions(patch.tipoOptions);
     if (normalized.length === 0) {
       throw new Error("At least one task type is required");
+    }
+
+    /**
+     * El cubo de reserva siempre está guardado. **No es inventarle una
+     * preferencia a nadie** — es hacer que lo guardado diga lo que la app ya
+     * hace.
+     *
+     * La web lo tapaba: `page.tsx` mete "Otros" en la lista que dibuja pase lo
+     * que pase, así que la pantalla se veía bien mientras la columna decía otra
+     * cosa. Quien lee la columna —Ajustes y, sobre todo, el bot— veía la
+     * verdad: el 2026-09-17 alguien terminó el onboarding escribiendo una sola
+     * categoría propia y su cuenta quedó con `tipo_options = {Visa}`. En
+     * Telegram eso significa que **ninguna tarea que no sea de visas tiene
+     * dónde ir**, y Sydney tiene que inventar o preguntar en cada una.
+     *
+     * Va aquí y no en las pantallas porque este es el único camino de escritura
+     * que comparten las dos puertas y el bot. Una invariante que cada pantalla
+     * recuerda por su cuenta es una invariante que alguna va a olvidar.
+     */
+    if (!normalized.some((option) => option.toLowerCase() === FALLBACK_CATEGORY.toLowerCase())) {
+      normalized = [...normalized, FALLBACK_CATEGORY];
     }
   }
 

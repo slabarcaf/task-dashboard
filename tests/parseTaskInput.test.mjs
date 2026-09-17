@@ -203,3 +203,50 @@ test("la categoría también se dice en inglés", () => {
   assert.equal(parseCategoryIn("mandar el informe, categoría work", cats).tipo, "Work");
   assert.equal(parseCategoryIn("pagar arriendo en la categoría finanzas", cats).tipo, "Finanzas");
 });
+
+/**
+ * "el primer lunes del mes de Octubre".
+ *
+ * Reportado el 2026-09-17: la regla del día suelto casaba con "lunes" dentro de
+ * la frase y devolvía **el lunes que viene**, tirando "primer" y "octubre" sin
+ * decir nada. Lo peor de un parser que adivina: contesta con seguridad y la
+ * fecha equivocada no se nota hasta que el recordatorio suena el día que no era.
+ */
+test("el enésimo día de la semana de un mes", () => {
+  // Lunes 14 de septiembre de 2026. Octubre de 2026 empieza en jueves,
+  // así que su primer lunes es el 5.
+  const hoy = "2026-09-14";
+  const due = (text) => parseTaskInput(text, hoy, []).dueDate;
+
+  assert.equal(due("tarea X para el primer lunes del mes de Octubre"), "2026-10-05");
+  assert.equal(due("tarea X el primer lunes de octubre"), "2026-10-05");
+  assert.equal(due("tarea X the first monday of october"), "2026-10-05");
+  assert.equal(due("tarea X the first monday in October"), "2026-10-05");
+
+  assert.equal(due("pagar el segundo martes de octubre"), "2026-10-13");
+  assert.equal(due("pagar el último viernes de octubre"), "2026-10-30");
+  assert.equal(due("pay the last friday of october"), "2026-10-30");
+
+  // Un mes que ya pasó este año se va al siguiente, igual que "el 5 de enero"
+  // dicho en diciembre.
+  assert.equal(due("juntarse el primer lunes de marzo"), "2027-03-01");
+
+  // Y el título queda limpio: la frase entera se consume, no solo "lunes".
+  assert.equal(
+    parseTaskInput("tarea X para el primer lunes del mes de Octubre", hoy, []).title,
+    "tarea X"
+  );
+
+  // Lo de siempre sigue igual: un día suelto es el próximo.
+  assert.equal(due("tarea X el proximo miercoles"), "2026-09-16");
+  assert.equal(due("tarea X el lunes"), "2026-09-21");
+});
+
+test("una regla exclusiva que no resuelve se abstiene en vez de adivinar", () => {
+  // "el cuarto domingo de febrero" de 2027 existe (28 de febrero), así que para
+  // provocar la abstención hace falta un mes inventado: la frase casa con la
+  // regla del ordinal, el mes no se reconoce, y nadie más debe contestar.
+  const out = parseTaskInput("tarea X el primer lunes de brumario", "2026-09-14", []);
+  assert.equal(out.dueDate, null, "no debe caer en la regla del día suelto");
+  assert.equal(out.title, "tarea X el primer lunes de brumario");
+});

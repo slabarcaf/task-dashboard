@@ -292,6 +292,8 @@ export const es = {
       "Elige las que uses de verdad. Sirven para agrupar tus tareas, y puedes cambiarlas cuando quieras.",
     customPlaceholder: "¿Falta alguna? Escríbela aquí",
     customAdd: "Agregar",
+    onlyYours:
+      "No marcaste ninguna de las de arriba. Puedes seguir así — lo que no calce en las tuyas va a quedar en Otros — o tocar las que uses de verdad.",
     inventedTitle: "Tuyas",
     inventedRemove: "Quitar",
     briefsTitle: "¿Cuándo te mando el resumen del día?",

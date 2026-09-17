@@ -69,6 +69,66 @@ function daysUntilWeekday(todayIso: string, weekday: number): number {
   return delta === 0 ? 7 : delta;
 }
 
+/**
+ * Ordinales que pueden preceder a un día de la semana. `-1` es "el último".
+ *
+ * No incluye "quinto/fifth" por descuido: un quinto lunes existe en algunos
+ * meses y en otros no, y un ordinal que a veces no tiene respuesta es
+ * exactamente el que conviene no ofrecer.
+ */
+const ORDINALS: Record<string, number> = {
+  primer: 1, primero: 1, primera: 1, "1er": 1, "1ro": 1, "1": 1,
+  first: 1, "1st": 1,
+  segundo: 2, segunda: 2, "2do": 2, "2": 2, second: 2, "2nd": 2,
+  tercer: 3, tercero: 3, tercera: 3, "3er": 3, "3ro": 3, "3": 3, third: 3, "3rd": 3,
+  cuarto: 4, cuarta: 4, "4to": 4, "4": 4, fourth: 4, "4th": 4,
+  ultimo: -1, ultima: -1, last: -1
+};
+
+function isoOf(date: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+}
+
+/**
+ * "el primer lunes de octubre" — el enésimo día de la semana de un mes dado.
+ *
+ * Existe porque sin él la regla del día suelto se quedaba con "lunes" y
+ * devolvía **el lunes que viene**, ignorando en silencio "primer" y "octubre".
+ * Una fecha equivocada no se nota hasta que el recordatorio suena el día que no
+ * era, y era una respuesta con toda la seguridad del mundo.
+ *
+ * Si el mes ya pasó este año, se va al siguiente — el mismo criterio que
+ * `isoFromDayMonth`, por la misma razón: en diciembre, "el primer lunes de
+ * enero" está a tres semanas y no once meses atrás.
+ */
+function nthWeekdayOfMonth(
+  todayIso: string,
+  ordinal: number,
+  weekday: number,
+  month: number
+): string | null {
+  const build = (year: number): string | null => {
+    if (ordinal === -1) {
+      // El día 0 del mes siguiente es el último del mes buscado.
+      const lastDay = new Date(year, month, 0).getDate();
+      const last = new Date(year, month - 1, lastDay);
+      return isoOf(new Date(year, month - 1, lastDay - ((last.getDay() - weekday + 7) % 7)));
+    }
+    const first = new Date(year, month - 1, 1);
+    const day = 1 + ((weekday - first.getDay() + 7) % 7) + (ordinal - 1) * 7;
+    const candidate = new Date(year, month - 1, day);
+    // Un "cuarto martes" puede caerse del mes. Si se cae, no hay respuesta.
+    return candidate.getMonth() === month - 1 ? isoOf(candidate) : null;
+  };
+
+  const year = Number(todayIso.slice(0, 4));
+  const thisYear = build(year);
+  if (thisYear && thisYear >= todayIso) return thisYear;
+  const nextYear = build(year + 1);
+  return nextYear && nextYear >= todayIso ? nextYear : null;
+}
+
 function isoFromDayMonth(todayIso: string, day: number, month: number): string | null {
   if (day < 1 || day > 31 || month < 1 || month > 12) return null;
   const year = Number(todayIso.slice(0, 4));
@@ -98,7 +158,12 @@ export function parseTaskInput(
   };
   if (!text.trim()) return plain;
 
-  const attempts: Array<{ re: RegExp; resolve: (m: RegExpMatchArray) => string | null }> = [
+  const attempts: Array<{
+    re: RegExp;
+    resolve: (m: RegExpMatchArray) => string | null;
+    /** Casó pero no resolvió: nadie más lo intenta. Ver la regla del ordinal. */
+    exclusive?: boolean;
+  }> = [
     // "hoy" / "today"
     { re: /\b(hoy|today)\b/i, resolve: () => todayIso },
     // "pasado mañana" MUST come before "mañana": the shorter rule would match
@@ -114,6 +179,26 @@ export function parseTaskInput(
     {
       re: /\bin\s+(\d{1,3})\s+(days?|weeks?)\b/i,
       resolve: (m) => addDaysToIsoDate(todayIso, Number(m[1]) * (/week/i.test(m[2]) ? 7 : 1))
+    },
+    // "el primer lunes de octubre" / "the last friday of november".
+    //
+    // ⚠️ Va ANTES de la regla del día suelto, y ese orden es todo el arreglo: la
+    // regla de abajo casa con "lunes" dentro de esta frase y devuelve el lunes
+    // que viene, tirando "primer" y "octubre" a la basura sin decir nada.
+    //
+    // `exclusive` significa: si esta frase casó y no se pudo resolver, no lo
+    // intente nadie más. Sin eso, un "cuarto martes" que no existe se caería a
+    // la regla del día suelto y volvería el mismo error que vinimos a arreglar.
+    {
+      exclusive: true,
+      re: /\b(?:el\s+|the\s+)?(primer[oa]?|1er|1ro|1st|first|segund[oa]?|2do|2nd|second|tercer[oa]?|3er|3ro|3rd|third|cuart[oa]|4to|4th|fourth|[uú]ltim[oa]|last)\s+(domingo|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+(?:de[l]?\s+(?:mes\s+de\s+)?|of\s+|in\s+)([a-zA-Z\u00e0-\u00ff]{3,10})\b/i,
+      resolve: (m) => {
+        const ordinal = ORDINALS[fold(m[1])];
+        const weekday = WEEKDAYS[fold(m[2])];
+        const month = MONTHS[fold(m[3])];
+        if (ordinal === undefined || weekday === undefined || month === undefined) return null;
+        return nthWeekdayOfMonth(todayIso, ordinal, weekday, month);
+      }
     },
     // "el viernes" / "próximo viernes" / "on friday"
     {
@@ -144,7 +229,12 @@ export function parseTaskInput(
     const match = text.match(attempt.re);
     if (!match) continue;
     const dueDate = attempt.resolve(match);
-    if (!dueDate) continue;
+    if (!dueDate) {
+      // Abstenerse es mejor que adivinar, y una regla exclusiva que casó ya dijo
+      // de qué habla la frase: dejar que otra conteste sería contestar mal.
+      if (attempt.exclusive) return plain;
+      continue;
+    }
 
     // El texto antes de la fecha pierde también su preámbulo ("con vencimiento"),
     // que sin la fecha no significa nada.
