@@ -105,5 +105,5 @@ Two rules the codebase holds to:
 - **Guarantees live in code, not in prose.** Anything enforced only by a comment or a prompt will
   eventually not be enforced.
 
-*Private repository. The assistant half is at
+*MIT licensed. The assistant half is at
 [slabarcaf/melissa-bot](https://github.com/slabarcaf/melissa-bot).*
