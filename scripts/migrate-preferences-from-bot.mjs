@@ -14,8 +14,9 @@
  *
  * The category rule is the only part that needs judgement. The three inputs
  * disagree, and the *stored* Postgres list is the one that turned out to be
- * junk for both users — the second user's held five English identifiers she never once used
- * on a task, and Santiago's was missing four he uses daily. So the list becomes:
+ * junk for both users — the second account held five English identifiers that were
+ * never once used on a task, and the owner's was missing four used daily. So the
+ * list becomes:
  *
  *     what they chose in Telegram  ∪  what their tasks actually use
  *
