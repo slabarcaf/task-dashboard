@@ -19,6 +19,12 @@ con Google prueba identidad, no permiso, y lo único que crea filas es
 `POST /api/admin/users`. Si alguien "no puede entrar", mira si tiene fila antes
 de suponer que el login está roto.
 
+## Muse
+
+Meta Muse lee y escribe tareas y deudas por `/api/muse/*`, con una llave personal
+y no con el secreto del bot. Antes de tocar esas rutas o `api_tokens`, lee
+[`docs/MUSE.md`](docs/MUSE.md).
+
 ## El resto del sistema
 
 Este repo es la mitad web. La otra mitad — el bot, el onboarding, los briefs, los

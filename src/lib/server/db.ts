@@ -345,6 +345,25 @@ async function initialize(): Promise<void> {
         )
       `);
 
+      // Llaves personales para clientes que no son ni el navegador ni el bot —
+      // hoy, el conector de Meta Muse. Existen porque el bearer del bot no sirve
+      // para eso: ese string más un chat id elegido es *cualquier* usuario, y no
+      // se le entrega a un tercero. Esta llave es de una sola persona, tiene
+      // alcances y se revoca sola. Se guarda su SHA-256, como las sesiones.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS api_tokens (
+          id BIGSERIAL PRIMARY KEY,
+          user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          label TEXT NOT NULL DEFAULT '',
+          scopes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_used_at TIMESTAMPTZ,
+          revoked_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id)`);
+
       await ensureOwnerUserAndBackfill(pool);
     })();
   }
@@ -1372,4 +1391,41 @@ export async function deleteDebtForUser(id: number, userId: number): Promise<boo
   await initialize();
   const result = await getPool().query(`DELETE FROM debts WHERE id = $1 AND user_id = $2`, [id, userId]);
   return (result.rowCount || 0) > 0;
+}
+
+// ── Llaves personales de API (conector de Muse) ─────────────────────────────
+// Se emiten y revocan con scripts/api-token.mjs; aquí solo se resuelven.
+
+export type ApiTokenScope = "tasks" | "debts";
+
+/** Prefijo visible: un `syd_` pegado en un log o en un chat se reconoce de inmediato. */
+export const API_TOKEN_PREFIX = "syd_";
+
+function hashApiToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+/**
+ * Resuelve una llave a su dueño. Una llave revocada, o de una cuenta borrada
+ * (CASCADE), simplemente no aparece.
+ */
+export async function findUserByApiToken(
+  token: string
+): Promise<{ user: DbUser; scopes: ApiTokenScope[]; tokenId: number } | null> {
+  await initialize();
+  const result = await getPool().query<UserRow & { token_id: number; scopes: string[] }>(
+    `UPDATE api_tokens t
+     SET last_used_at = NOW()
+     FROM users u
+     WHERE t.token_hash = $1 AND t.revoked_at IS NULL AND u.id = t.user_id
+     RETURNING u.id, u.email, u.name, u.telegram_chat_id, t.id AS token_id, t.scopes`,
+    [hashApiToken(token)]
+  );
+  if (!result.rowCount) return null;
+  const row = result.rows[0];
+  return {
+    user: toUser(row),
+    scopes: (row.scopes || []).filter((s): s is ApiTokenScope => s === "tasks" || s === "debts"),
+    tokenId: Number(row.token_id)
+  };
 }
