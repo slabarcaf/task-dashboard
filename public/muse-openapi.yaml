@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: Sydney — tareas y deudas
+  version: "1.0"
+  description: |
+    API personal de Sydney para un asistente (Meta Muse). Todas las rutas piden
+    `Authorization: Bearer syd_…`. La llave es de una sola persona: todo lo que
+    se lee y escribe es suyo.
+
+    Reglas para el asistente:
+    - Para "qué tengo hoy" usa GET /api/muse/brief; trae todo en una llamada.
+    - Para completar una tarea busca su `rowId` con GET /api/muse/tasks y luego
+      PATCH con {"statusFinalOutcome":"Done"}. Nunca supongas el id.
+    - Solo di que algo se hizo si la respuesta trae `ok: true`; repite lo que
+      devolvió (`task` o `debt`), no lo que pediste.
+    - No existe borrar. Si piden borrar una tarea, márcala "Done" o pídele a la
+      persona que lo haga en la web.
+    - Fechas en formato YYYY-MM-DD. "Hoy" es `today` del brief, en la zona de la persona.
+servers:
+  - url: https://task-dashboard-c7q2.vercel.app
+security:
+  - bearer: []
+paths:
+  /api/muse/brief:
+    get:
+      summary: Brief del día — vencidas, de hoy, prioritarias, próximas 3 días y deudas pendientes
+      operationId: getBrief
+      responses:
+        "200":
+          description: Brief
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Brief" }
+  /api/muse/tasks:
+    get:
+      summary: Lista tareas
+      operationId: listTasks
+      parameters:
+        - name: view
+          in: query
+          schema: { type: string, enum: [open, overdue_and_today, all], default: open }
+      responses:
+        "200":
+          description: Tareas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  view: { type: string }
+                  count: { type: integer }
+                  tasks: { type: array, items: { $ref: "#/components/schemas/Task" } }
+    post:
+      summary: Crea una tarea
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toDo, dueDateNextStep]
+              properties:
+                toDo: { type: string, description: "Título de la tarea" }
+                dueDateNextStep: { type: string, format: date }
+                nextStep: { type: string }
+                tipo: { type: string, description: "Categoría (ej. Clases, Recruiting, Personal, Finanzas, Otros)" }
+                statusFinalOutcome: { $ref: "#/components/schemas/TaskStatus" }
+                isPriority: { type: boolean }
+                recurrenceInterval: { type: integer, minimum: 1, nullable: true }
+                recurrenceUnit: { type: string, enum: [day, week, month], nullable: true }
+      responses:
+        "200":
+          description: La tarea tal como quedó escrita
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  task: { $ref: "#/components/schemas/Task" }
+        "400": { description: Falta toDo/dueDateNextStep o estado inválido }
+  /api/muse/tasks/{rowId}:
+    patch:
+      summary: Edita o completa una tarea
+      operationId: updateTask
+      parameters:
+        - name: rowId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                toDo: { type: string }
+                statusFinalOutcome: { $ref: "#/components/schemas/TaskStatus" }
+                tipo: { type: string }
+                nextStep: { type: string }
+                dueDateNextStep: { type: string, format: date }
+                isPriority: { type: boolean }
+                recurrenceInterval: { type: integer, minimum: 1, nullable: true }
+                recurrenceUnit: { type: string, enum: [day, week, month], nullable: true }
+      responses:
+        "200":
+          description: La tarea tal como quedó. Si era recurrente y pasó a Done, nextOccurrenceId es la nueva.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  task: { $ref: "#/components/schemas/Task" }
+                  nextOccurrenceId: { type: integer, nullable: true }
+        "404": { description: No existe (o no es de esta persona) }
+  /api/muse/debts:
+    get:
+      summary: Lista deudas
+      operationId: listDebts
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, all], default: pending }
+      responses:
+        "200":
+          description: Deudas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  count: { type: integer }
+                  debts: { type: array, items: { $ref: "#/components/schemas/Debt" } }
+    post:
+      summary: Anota una deuda
+      operationId: createDebt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, amount, direction]
+              properties:
+                name: { type: string, description: "La otra persona" }
+                amount: { type: number, exclusiveMinimum: true, minimum: 0 }
+                currency: { type: string, default: USD }
+                direction:
+                  type: string
+                  enum: ["Debo yo", "Me deben"]
+                  description: '"Debo yo" = la persona le debe a `name`; "Me deben" = `name` le debe a la persona'
+                reason: { type: string }
+      responses:
+        "200":
+          description: La deuda tal como quedó
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  debt: { $ref: "#/components/schemas/Debt" }
+  /api/muse/debts/{id}:
+    patch:
+      summary: Marca una deuda pagada o pendiente
+      operationId: updateDebt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: ["Pagado", "Por pagar"] }
+      responses:
+        "200":
+          description: La deuda tal como quedó
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  debt: { $ref: "#/components/schemas/Debt" }
+        "404": { description: No existe (o no es de esta persona) }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [To-do, On-going, Done, On hold]
+    Task:
+      type: object
+      properties:
+        rowId: { type: integer }
+        toDo: { type: string }
+        statusFinalOutcome: { $ref: "#/components/schemas/TaskStatus" }
+        tipo: { type: string }
+        nextStep: { type: string }
+        dueDateNextStep: { type: string, format: date }
+        statusNextStep: { type: string }
+        isPriority: { type: boolean }
+        recurrenceInterval: { type: integer, nullable: true }
+        recurrenceUnit: { type: string, nullable: true }
+    Debt:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        direction: { type: string, enum: ["Debo yo", "Me deben"] }
+        reason: { type: string }
+        status: { type: string, enum: ["Por pagar", "Pagado"] }
+        createdAt: { type: string, format: date-time }
+    Brief:
+      type: object
+      properties:
+        ok: { type: boolean }
+        today: { type: string, format: date }
+        timezone: { type: string }
+        overdue: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        dueToday: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        priority: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        upcoming: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        pendingDebts:
+          type: object
+          properties:
+            owedByMe: { type: array, items: { $ref: "#/components/schemas/Debt" } }
+            owedToMe: { type: array, items: { $ref: "#/components/schemas/Debt" } }
+        counts:
+          type: object
+          properties:
+            open: { type: integer }
+            overdue: { type: integer }
+            dueToday: { type: integer }
+            pendingDebts: { type: integer }

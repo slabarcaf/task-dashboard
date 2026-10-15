@@ -9,13 +9,14 @@ Revisión completa: **2026-09-11**.
 
 ---
 
-## Las tres puertas
+## Las cuatro puertas
 
 | Puerta | Quién entra | Cómo se prueba |
 |---|---|---|
 | **Web** | Solo quien ya tiene fila en `users` | Google Identity Services: firma e `aud` verificados, y `email_verified` obligatorio |
 | **Bot** | El bot, actuando *para* una persona | `Authorization: Bearer` comparado en tiempo constante + `X-Telegram-Chat-Id` resuelto a una fila |
 | **Admin** | Las direcciones de `ADMIN_EMAILS` | Comparación de correo; **falla cerrado** si la variable no está |
+| **Muse** (`/api/muse/*`) | Un cliente con la llave personal de **una** cuenta | `Bearer syd_…` hasheado contra `api_tokens`, con alcances y revocable; sin DELETE. Ver `docs/MUSE.md` |
 
 **Solo por invitación.** Firmar con Google prueba quién eres, **no** que puedas
 entrar. `linkGoogleIdentity` reclama una fila existente por `google_sub` o por
